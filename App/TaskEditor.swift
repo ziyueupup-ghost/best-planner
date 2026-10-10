@@ -1,0 +1,410 @@
+import SwiftUI
+
+/// Edits a task with autosave: every change is written to the store immediately.
+/// A new task is created as soon as it has a title.
+struct TaskEditor: View {
+    @EnvironmentObject private var store: BoardStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.fontScale) private var fontScale
+    @State private var task: PlannerTask
+    @State private var newSubtask = ""
+    @State private var newTag = ""
+    @State private var newNote = ""
+    @State private var packMessage: String?
+    @State private var confirmDelete = false
+    @State private var exists: Bool
+    @State private var deleted = false
+    let isNew: Bool
+
+    init(task: PlannerTask, isNew: Bool) {
+        _task = State(initialValue: task)
+        _exists = State(initialValue: !isNew)
+        self.isNew = isNew
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(isNew ? "新建任务" : "编辑任务")
+                .scaledFont(.title2, weight: .bold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding([.horizontal, .top], 20)
+                .padding(.bottom, 4)
+
+            Form {
+                basicSection
+                tagSection
+                dateSection
+                subtaskSection
+                LinksSection(links: $task.links)
+                historySection
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                if exists {
+                    FocusMenu(task: task)
+                        .fixedSize()
+                    Menu("复制") {
+                        Button("复制任务") { duplicate(resetChecks: false) }
+                        Button("复制任务（子任务清空勾选）") { duplicate(resetChecks: true) }
+                    }
+                    .fixedSize()
+                    .help("复制一份放在这个任务下面")
+                    Button("删除任务", role: .destructive) { confirmDelete = true }
+                }
+                Spacer()
+                Label(exists ? "已自动保存" : "输入标题后自动创建",
+                      systemImage: exists ? "checkmark.circle.fill" : "pencil")
+                    .scaledFont(.caption)
+                    .foregroundStyle(exists ? Color.green : Color.secondary)
+                Button("完成") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding([.horizontal, .bottom], 20)
+            .padding(.top, 8)
+        }
+        .frame(width: FontScale.sheetSize(width: 520, height: 640, scale: fontScale).width,
+               height: FontScale.sheetSize(width: 520, height: 640, scale: fontScale).height)
+        .onChange(of: task) { _, _ in autosave() }
+        .onDisappear {
+            addSubtask()
+            autosave()
+            if exists, !deleted { store.addNote(task.id, newNote) }
+        }
+        .onExitCommand { dismiss() }
+        .alert("删除「\(task.title)」？", isPresented: $confirmDelete) {
+            Button("移到最近删除", role: .destructive) {
+                deleted = true
+                store.delete(task.id)
+                dismiss()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("30 天内可以在「最近删除」里恢复。")
+        }
+    }
+
+    // MARK: Sections
+
+    private var basicSection: some View {
+        Section {
+            TextField("标题", text: $task.title, prompt: Text("要做什么？"))
+            TextField("备注", text: $task.notes, prompt: Text("可选"), axis: .vertical)
+                .lineLimit(2...5)
+            Picker("状态", selection: $task.columnID) {
+                ForEach(store.columns) { c in
+                    Text(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)").tag(c.id)
+                }
+            }
+            let levels = store.board.priorities
+            if levels.count <= 5 {
+                Picker("优先级", selection: $task.priorityID) {
+                    ForEach(levels) { Text($0.label).tag($0.id) }
+                }
+                .pickerStyle(.segmented)
+            } else {
+                Picker("优先级", selection: $task.priorityID) {
+                    ForEach(levels) { Text($0.label).tag($0.id) }
+                }
+            }
+            Picker(selection: $task.recurrence) {
+                ForEach(Recurrence.allCases) { Text($0.title).tag($0) }
+            } label: {
+                Label("重复", systemImage: "repeat")
+            }
+            .help("完成后自动生成下一次，日期按周期往后推")
+            optionalColorRow("左侧色条颜色", hex: $task.colorHex, fallback: Palette.colors[4], palette: Palette.colors)
+            optionalColorRow("卡片背景颜色", hex: $task.backgroundHex, fallback: "#FFF4D6", palette: Palette.pastel + Palette.colors)
+        }
+    }
+
+    private var tagSection: some View {
+        Section("标签") {
+            if store.tags.isEmpty {
+                Text("还没有标签，在下面新建一个").foregroundStyle(.secondary)
+            } else {
+                FlowLayout(spacing: 6) {
+                    ForEach(store.tags) { tag in
+                        let selected = task.tagIDs.contains(tag.id)
+                        Button {
+                            if selected {
+                                task.tagIDs.removeAll { $0 == tag.id }
+                            } else {
+                                task.tagIDs.append(tag.id)
+                                applyPacks(forTag: tag.id)
+                            }
+                        } label: {
+                            TagChip(tag: tag, selected: selected)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            HStack {
+                TextField("新标签", text: $newTag, prompt: Text("输入标签名，回车添加"))
+                    .onSubmit(addTag)
+                Button("添加", action: addTag)
+                    .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+    }
+
+    private var dateSection: some View {
+        Section {
+            ForEach($task.dates) { $d in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: d.kind.symbol)
+                            .foregroundStyle(d.kind.color)
+                            .frame(width: 18)
+                        Picker("", selection: $d.kind) {
+                            ForEach(DateKind.allCases) { Text($0.title).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 90)
+                        DatePicker("", selection: $d.date,
+                                   displayedComponents: d.kind == .reminder ? [.date, .hourAndMinute] : [.date])
+                            .labelsHidden()
+                        Spacer()
+                        Button {
+                            task.dates.removeAll { $0.id == d.id }
+                        } label: {
+                            Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("删除这个日期")
+                    }
+                    TextField("说明", text: $d.note, prompt: Text("说明（可选），例如：初稿完成"))
+                        .labelsHidden()
+                        .padding(.leading, 26)
+                }
+            }
+            if task.dates.contains(where: { $0.kind == .reminder || $0.kind == .deadline }) {
+                Toggle(isOn: Binding(get: { !task.notificationsOff }, set: { task.notificationsOff = !$0 })) {
+                    Label(task.notificationsOff ? "这个任务不发通知" : "到时间发通知",
+                          systemImage: task.notificationsOff ? "bell.slash" : "bell")
+                }
+                .help("关掉后，这个任务的「提醒」和「截止」都不会弹出通知（只影响这一个任务）")
+            }
+            Menu {
+                ForEach(DateKind.allCases) { kind in
+                    Button {
+                        task.dates.append(TaskDate(kind: kind, date: kind == .reminder ? Self.nextFullHour : Calendar.current.startOfDay(for: Date())))
+                    } label: {
+                        Label(kind.title, systemImage: kind.symbol)
+                    }
+                }
+            } label: {
+                Label("添加日期", systemImage: "calendar.badge.plus")
+            }
+            .fixedSize()
+        } header: {
+            Text("日期")
+        } footer: {
+            Text("可以添加多个：截止、里程碑、开始、提醒。「提醒」到点会弹出通知，「截止」当天早上 9 点通知；截止日期过了会标红。")
+                .scaledFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var subtaskSection: some View {
+        Section {
+            ForEach($task.subtasks) { $sub in
+                let i = task.subtasks.firstIndex { $0.id == sub.id } ?? 0
+                HStack {
+                    VStack(spacing: 0) {
+                        Button { task.subtasks.swapAt(i, i - 1) } label: {
+                            Image(systemName: "chevron.up").scaledFont(.caption2, weight: .bold)
+                        }
+                        .disabled(i == 0)
+                        .help("上移")
+                        Button { task.subtasks.swapAt(i, i + 1) } label: {
+                            Image(systemName: "chevron.down").scaledFont(.caption2, weight: .bold)
+                        }
+                        .disabled(i >= task.subtasks.count - 1)
+                        .help("下移")
+                    }
+                    .buttonStyle(.borderless)
+                    .frame(width: 16)
+                    Toggle("", isOn: $sub.isDone)
+                        .toggleStyle(.checkbox)
+                        .labelsHidden()
+                    TextField("", text: $sub.title)
+                        .labelsHidden()
+                        .strikethrough(sub.isDone)
+                    Button {
+                        task.subtasks.removeAll { $0.id == sub.id }
+                    } label: {
+                        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            HStack {
+                Image(systemName: "plus").foregroundStyle(.secondary)
+                TextField("新子任务", text: $newSubtask, prompt: Text("添加子任务，回车确认"))
+                    .labelsHidden()
+                    .onSubmit(addSubtask)
+            }
+            HStack {
+                Menu {
+                    if store.board.subtaskPacks.isEmpty {
+                        Text("还没有子任务包，可以在设置 →「子任务包」里创建")
+                    }
+                    ForEach(store.board.subtaskPacks) { pack in
+                        Button("\(pack.label)（\(pack.items.count) 项）") { apply(pack) }
+                    }
+                    Divider()
+                    Button("把当前子任务存为新的子任务包") {
+                        store.addPack(name: task.title, items: task.subtasks.map(\.title))
+                        packMessage = "已存为子任务包「\(task.title.isEmpty ? "新子任务包" : task.title)」"
+                    }
+                    .disabled(task.subtasks.isEmpty)
+                } label: {
+                    Label("应用子任务包", systemImage: "shippingbox")
+                }
+                .fixedSize()
+                if let packMessage {
+                    Text(packMessage)
+                        .scaledFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            let p = task.subtaskProgress
+            Text(p.total == 0 ? "子任务" : "子任务 \(p.done)/\(p.total)")
+        }
+    }
+
+    private var historySection: some View {
+        Section {
+            if let stored = store.task(task.id) {
+                if store.board.isDone(stored) {
+                    DatePicker(selection: Binding(
+                        get: { stored.completedAt ?? Date() },
+                        set: { store.setCompletedAt(task.id, $0) }
+                    ), displayedComponents: [.date, .hourAndMinute]) {
+                        Label("完成日期", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                }
+                HStack {
+                    Image(systemName: "text.bubble").foregroundStyle(.secondary)
+                    TextField("添加记录", text: $newNote, prompt: Text("写一条记录，回车添加（例如：和老师讨论过）"))
+                        .labelsHidden()
+                        .onSubmit {
+                            store.addNote(task.id, newNote)
+                            newNote = ""
+                        }
+                }
+                ForEach(stored.history.reversed()) { entry in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: entry.kind.symbol)
+                            .foregroundStyle(entry.kind.color)
+                            .frame(width: 16)
+                        Text(entry.text)
+                            .foregroundStyle(entry.kind == .note ? .primary : .secondary)
+                            .textSelection(.enabled)
+                        Spacer(minLength: 8)
+                        Text(entry.date.dayTimeLabel)
+                            .scaledFont(.caption, monospacedDigit: true)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .scaledFont(.callout)
+                    .contextMenu {
+                        Button("删除这条记录", role: .destructive) {
+                            store.deleteHistoryEntry(task.id, entry.id)
+                        }
+                    }
+                }
+            } else {
+                Text("创建任务后会自动记录历史").foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("完成与历史")
+        } footer: {
+            Text("移动状态、完成、修改内容、勾选子任务都会自动记录。右键可以删除某条记录。")
+                .scaledFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func optionalColorRow(_ title: String, hex: Binding<String?>, fallback: String, palette: [String]) -> some View {
+        HStack {
+            Toggle(title, isOn: Binding(
+                get: { hex.wrappedValue != nil },
+                set: { hex.wrappedValue = $0 ? (hex.wrappedValue ?? fallback) : nil }
+            ))
+            Spacer()
+            if hex.wrappedValue != nil {
+                ColorSwatchPicker(hex: Binding(
+                    get: { hex.wrappedValue ?? fallback },
+                    set: { hex.wrappedValue = $0 }
+                ), palette: palette)
+            }
+        }
+    }
+
+    // MARK: Actions
+
+    private func addTag() {
+        guard !newTag.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let tag = store.addTag(named: newTag)
+        if !task.tagIDs.contains(tag.id) {
+            task.tagIDs.append(tag.id)
+            applyPacks(forTag: tag.id)
+        }
+        newTag = ""
+    }
+
+    private func apply(_ pack: SubtaskPack) {
+        let added = task.apply(pack)
+        packMessage = added > 0 ? "已添加「\(pack.name)」的 \(added) 个子任务" : "「\(pack.name)」的子任务都已经有了"
+    }
+
+    /// Adding a tag also adds the subtask packs linked to it.
+    private func applyPacks(forTag tagID: String) {
+        let packs = store.board.packs(forTag: tagID)
+        guard !packs.isEmpty else { return }
+        let added = packs.reduce(0) { $0 + task.apply($1) }
+        if added > 0 {
+            packMessage = "已按标签自动添加 \(added) 个子任务（\(packs.map(\.name).joined(separator: "、"))）"
+        }
+    }
+
+    private func addSubtask() {
+        let title = newSubtask.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        task.subtasks.append(Subtask(title: title))
+        newSubtask = ""
+    }
+
+    /// Default time for a new 提醒: the next full hour.
+    static var nextFullHour: Date {
+        let cal = Calendar.current
+        let hour = cal.dateInterval(of: .hour, for: Date())?.start ?? Date()
+        return cal.date(byAdding: .hour, value: 1, to: hour) ?? Date()
+    }
+
+    /// Saves pending edits first so the copy includes them, then switches to the copy's editor.
+    private func duplicate(resetChecks: Bool) {
+        addSubtask()
+        autosave()
+        guard let copy = store.duplicate(task.id, resetChecks: resetChecks) else { return }
+        dismiss()
+        NotificationCenter.default.post(name: .openTaskRequested, object: copy.id)
+    }
+
+    private func autosave() {
+        var t = task
+        t.title = t.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !deleted, !t.title.isEmpty else { return }
+        if exists {
+            store.update(t)
+        } else if store.tasks.contains(where: { $0.id == t.id }) == false {
+            store.add(t)
+            exists = true
+        }
+    }
+}
