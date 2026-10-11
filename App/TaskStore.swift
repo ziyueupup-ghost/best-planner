@@ -78,7 +78,7 @@ final class BoardStore: ObservableObject {
         defer { lastChange = now }
         guard now.timeIntervalSince(lastChange) > 0.8 else { return }
         undoManager.registerUndo(withTarget: self) { $0.restore(old) }
-        undoManager.setActionName("修改")
+        undoManager.setActionName(L("修改"))
     }
 
     private func restore(_ snapshot: Board) {
@@ -198,7 +198,7 @@ final class BoardStore: ObservableObject {
     func setCompletedAt(_ id: String, _ date: Date) {
         guard let i = board.tasks.firstIndex(where: { $0.id == id }), board.isDone(board.tasks[i]) else { return }
         board.tasks[i].completedAt = date
-        Board.appendHistory(&board.tasks[i], HistoryEntry(kind: .completed, text: "完成日期改为 \(date.dayLabel)", field: "completedAt"))
+        Board.appendHistory(&board.tasks[i], HistoryEntry(kind: .completed, text: L("完成日期改为 \(date.dayLabel)"), field: "completedAt"))
         persist()
     }
 
@@ -277,7 +277,7 @@ final class BoardStore: ObservableObject {
         var t = task
         t.deletedAt = Date()
         let column = board.column(t.columnID)?.name ?? ""
-        Board.appendHistory(&t, HistoryEntry(kind: .moved, text: "从「\(column)」删除"))
+        Board.appendHistory(&t, HistoryEntry(kind: .moved, text: L("从「\(column)」删除")))
         board.trash.insert(t, at: 0)
     }
 
@@ -290,7 +290,7 @@ final class BoardStore: ObservableObject {
         if board.isDone(t), t.completedAt == nil { t.completedAt = Date() }
         if !board.isDone(t) { t.completedAt = nil }
         t.order = board.topOrder(in: t.columnID)
-        Board.appendHistory(&t, HistoryEntry(kind: .created, text: "从「最近删除」恢复到「\(board.column(t.columnID)?.name ?? "")」"))
+        Board.appendHistory(&t, HistoryEntry(kind: .created, text: L("从「最近删除」恢复到「\(board.column(t.columnID)?.name ?? "")」")))
         board.tasks.append(t)
         persist()
     }
@@ -381,7 +381,7 @@ final class BoardStore: ObservableObject {
     func addFocusSession(_ taskID: String, start: Date, minutes: Int) {
         guard minutes > 0, let i = board.tasks.firstIndex(where: { $0.id == taskID }) else { return }
         board.tasks[i].focusSessions.append(FocusSession(start: start, minutes: minutes))
-        board.tasks[i].history.append(HistoryEntry(kind: .note, text: "🍅 专注 \(minutes) 分钟"))
+        board.tasks[i].history.append(HistoryEntry(kind: .note, text: L("🍅 专注 \(minutes) 分钟")))
         persist()
     }
 
@@ -433,7 +433,7 @@ final class BoardStore: ObservableObject {
     func addPack(name: String, items: [String]) {
         let clean = items.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard !clean.isEmpty else { return }
-        board.subtaskPacks.append(SubtaskPack(name: name.isEmpty ? "新子任务包" : name, icon: "📦", items: clean))
+        board.subtaskPacks.append(SubtaskPack(name: name.isEmpty ? L("新子任务包") : name, icon: "📦", items: clean))
         persist()
     }
 

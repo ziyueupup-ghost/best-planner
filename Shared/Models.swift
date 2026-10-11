@@ -55,10 +55,10 @@ enum SortMode: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .manual: "手动排序（拖动调整）"
-        case .priority: "按优先级"
-        case .date: "按日期"
-        case .created: "按创建时间"
+        case .manual: L("手动排序（拖动调整）")
+        case .priority: L("按优先级")
+        case .date: L("按日期")
+        case .created: L("按创建时间")
         }
     }
 }
@@ -98,10 +98,10 @@ enum DateKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .deadline: "截止"
-        case .milestone: "里程碑"
-        case .start: "开始"
-        case .reminder: "提醒"
+        case .deadline: L("截止")
+        case .milestone: L("里程碑")
+        case .start: L("开始")
+        case .reminder: L("提醒")
         }
     }
 
@@ -356,29 +356,29 @@ struct Board: Codable, Equatable {
     }
 
     static let defaultColumns: [BoardColumn] = [
-        BoardColumn(id: "todo", name: "待办", colorHex: "#5B85F5", icon: "📝"),
-        BoardColumn(id: "doing", name: "进行中", colorHex: "#F79E33", icon: "🏃"),
-        BoardColumn(id: "done", name: "已完成", colorHex: "#40B873", isDone: true, icon: "🎉"),
+        BoardColumn(id: "todo", name: L("待办"), colorHex: "#5B85F5", icon: "📝"),
+        BoardColumn(id: "doing", name: L("进行中"), colorHex: "#F79E33", icon: "🏃"),
+        BoardColumn(id: "done", name: L("已完成"), colorHex: "#40B873", isDone: true, icon: "🎉"),
     ]
 
     static let defaultTags: [Tag] = [
-        Tag(name: "工作", colorHex: "#5B85F5", icon: "💼"),
-        Tag(name: "学习", colorHex: "#9B6CF0", icon: "📚"),
-        Tag(name: "生活", colorHex: "#40B873", icon: "🌱"),
+        Tag(name: L("工作"), colorHex: "#5B85F5", icon: "💼"),
+        Tag(name: L("学习"), colorHex: "#9B6CF0", icon: "📚"),
+        Tag(name: L("生活"), colorHex: "#40B873", icon: "🌱"),
     ]
 
     static let defaultPriorities: [PriorityLevel] = [
-        PriorityLevel(id: "urgent", name: "紧急", colorHex: "#E5534B", icon: "🔥"),
-        PriorityLevel(id: "high", name: "高", colorHex: "#F79E33", icon: "⬆️"),
-        PriorityLevel(id: "normal", name: "中", colorHex: "#5B85F5"),
-        PriorityLevel(id: "low", name: "低", colorHex: "#8D99AE", icon: "⬇️"),
+        PriorityLevel(id: "urgent", name: L("紧急"), colorHex: "#E5534B", icon: "🔥"),
+        PriorityLevel(id: "high", name: L("高"), colorHex: "#F79E33", icon: "⬆️"),
+        PriorityLevel(id: "normal", name: L("中"), colorHex: "#5B85F5"),
+        PriorityLevel(id: "low", name: L("低"), colorHex: "#8D99AE", icon: "⬇️"),
     ]
 
     /// Examples to start from; users can edit or delete them.
     static let defaultPacks: [SubtaskPack] = [
-        SubtaskPack(name: "写作流程", icon: "📝", items: ["列提纲", "写初稿", "修改", "校对", "定稿"]),
-        SubtaskPack(name: "论文修改", icon: "📄", items: ["读审稿意见", "列修改清单", "改正文", "检查引用和格式", "写回复信", "发给导师"]),
-        SubtaskPack(name: "出行准备", icon: "✈️", items: ["订交通", "订住宿", "查天气", "收拾行李"]),
+        SubtaskPack(name: L("写作流程"), icon: "📝", items: [L("列提纲"), L("写初稿"), L("修改"), L("校对"), L("定稿")]),
+        SubtaskPack(name: L("论文修改"), icon: "📄", items: [L("读审稿意见"), L("列修改清单"), L("改正文"), L("检查引用和格式"), L("写回复信"), L("发给导师")]),
+        SubtaskPack(name: L("出行准备"), icon: "✈️", items: [L("订交通"), L("订住宿"), L("查天气"), L("收拾行李")]),
     ]
 
     /// Packs linked to a tag (added automatically when that tag goes on a task).
@@ -395,7 +395,7 @@ struct Board: Codable, Equatable {
         priorities.first { $0.id == task.priorityID }
             ?? priorities.first { $0.id == defaultPriorityID }
             ?? priorities.first
-            ?? PriorityLevel(id: "normal", name: "中", colorHex: "#5B85F5")
+            ?? PriorityLevel(id: "normal", name: L("中"), colorHex: "#5B85F5")
     }
 
     /// Lower is more important.
@@ -554,7 +554,7 @@ enum PlannerStorage {
 
     enum SyncError: LocalizedError {
         case noICloudDrive
-        var errorDescription: String? { "这台 Mac 没有打开 iCloud 云盘。请先在「系统设置 → Apple ID → iCloud → iCloud 云盘」里打开。" }
+        var errorDescription: String? { L("这台 Mac 没有打开 iCloud 云盘。请先在「系统设置 → Apple ID → iCloud → iCloud 云盘」里打开。") }
     }
 
     /// Turns iCloud sync on or off. Turning it on uses the iCloud copy if another Mac

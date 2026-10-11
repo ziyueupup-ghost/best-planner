@@ -47,14 +47,14 @@ struct ReviewView: View {
     private func header(_ r: ReviewData) -> some View {
         let unlocked = r.achievements.filter(\.isUnlocked).count
         return HStack(spacing: 12) {
-            Text("回顾").scaledFont(.title2, weight: .bold)
+            Text(L("回顾")).scaledFont(.title2, weight: .bold)
             Spacer()
-            badge("🔥", "连续 \(r.currentStreak) 天", "最长 \(r.longestStreak) 天")
-            badge("✅", "共完成 \(r.totalCompleted)", "个任务")
+            badge("🔥", L("连续 \(r.currentStreak) 天"), L("最长 \(r.longestStreak) 天"))
+            badge("✅", L("共完成 \(r.totalCompleted)"), L("个任务"))
             Button {
                 showAchievements = true
             } label: {
-                badge("🏆", "成就 \(unlocked)/\(r.achievements.count)", "点击查看")
+                badge("🏆", L("成就 \(unlocked)/\(r.achievements.count)"), L("点击查看"))
             }
             .buttonStyle(.plain)
         }
@@ -89,13 +89,13 @@ struct ReviewView: View {
                 .scaledFont(.headline)
                 .frame(minWidth: 110 * fontScale)
             Button { shiftMonth(1) } label: { Image(systemName: "chevron.right") }
-            Button("本月") {
+            Button(L("本月")) {
                 month = cal.dateInterval(of: .month, for: Date())!.start
                 selected = cal.startOfDay(for: Date())
             }
             Spacer()
-            Text("完成 \(done) 个任务 · \(subs) 个子任务 · 专注 \(focus / 60) 小时 \(focus % 60) 分 · 有产出 \(activeDays) 天"
-                 + (best.map { $0.value.didSomething ? " · 最高产：\($0.key.formatted(.dateTime.month().day()))" : "" } ?? ""))
+            Text(L("完成 \(done) 个任务 · \(subs) 个子任务 · 专注 \(focus / 60) 小时 \(focus % 60) 分 · 有产出 \(activeDays) 天")
+                 + (best.map { $0.value.didSomething ? L(" · 最高产：\($0.key.formatted(.dateTime.month().day()))") : "" } ?? ""))
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -116,7 +116,7 @@ struct ReviewView: View {
         let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
         return VStack(spacing: 6) {
             LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(["一", "二", "三", "四", "五", "六", "日"], id: \.self) { d in
+                ForEach([L("一"), L("二"), L("三"), L("四"), L("五"), L("六"), L("日")], id: \.self) { d in
                     Text(d).scaledFont(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(Array(cells.enumerated()), id: \.offset) { _, date in
@@ -129,9 +129,9 @@ struct ReviewView: View {
             }
             HStack(spacing: 4) {
                 Spacer()
-                Text("少").scaledFont(.caption2).foregroundStyle(.secondary)
+                Text(L("少")).scaledFont(.caption2).foregroundStyle(.secondary)
                 ForEach(0..<5) { l in RoundedRectangle(cornerRadius: 3).fill(heat(l)).frame(width: 12, height: 12) }
-                Text("多").scaledFont(.caption2).foregroundStyle(.secondary)
+                Text(L("多")).scaledFont(.caption2).foregroundStyle(.secondary)
             }
         }
     }
@@ -168,7 +168,7 @@ struct ReviewView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(a.isEmpty ? "这天没有记录" : "完成 \(a.completed.count) 个任务、\(a.subtasks.count) 个子任务")
+        .help(a.isEmpty ? L("这天没有记录") : L("完成 \(a.completed.count) 个任务、\(a.subtasks.count) 个子任务"))
     }
 
     private func heat(_ level: Int) -> Color {
@@ -189,14 +189,14 @@ private struct DayDetail: View {
             Text(day.formatted(.dateTime.year().month().day().weekday(.wide)))
                 .scaledFont(.title3, weight: .semibold)
             HStack(spacing: 8) {
-                stat("完成任务", activity.completed.count, .green)
-                stat("完成子任务", activity.subtasks.count, .blue)
-                stat("专注分钟", activity.focusMinutes, .orange)
-                stat("新建任务", activity.created.count, .purple)
+                stat(L("完成任务"), activity.completed.count, .green)
+                stat(L("完成子任务"), activity.subtasks.count, .blue)
+                stat(L("专注分钟"), activity.focusMinutes, .orange)
+                stat(L("新建任务|stat"), activity.created.count, .purple)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("今日总结").scaledFont(.headline)
+                Text(L("今日总结")).scaledFont(.headline)
                 TextEditor(text: $note)
                     .scaledFont(.body)
                     .frame(minHeight: 70)
@@ -204,7 +204,7 @@ private struct DayDetail: View {
                     .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                     .overlay(alignment: .topLeading) {
                         if note.isEmpty {
-                            Text("这一天做了什么、有什么收获…（自动保存）")
+                            Text(L("这一天做了什么、有什么收获…（自动保存）"))
                                 .scaledFont(.callout)
                                 .foregroundStyle(.tertiary)
                                 .padding(12)
@@ -214,14 +214,14 @@ private struct DayDetail: View {
             }
 
             if !activity.completed.isEmpty {
-                section("✅ 完成了") {
+                section(L("✅ 完成了")) {
                     ForEach(Array(activity.completed.enumerated()), id: \.offset) { _, c in
                         taskLine(c.task, time: c.at)
                     }
                 }
             }
             if !activity.subtasks.isEmpty {
-                section("☑️ 勾掉的子任务") {
+                section(L("☑️ 勾掉的子任务")) {
                     ForEach(Array(groupedSubtasks.enumerated()), id: \.offset) { _, g in
                         VStack(alignment: .leading, spacing: 2) {
                             Button(g.task.title) { openTask(g.task) }
@@ -235,7 +235,7 @@ private struct DayDetail: View {
                 }
             }
             if !activity.notes.isEmpty {
-                section("💬 写下的记录") {
+                section(L("💬 写下的记录")) {
                     ForEach(Array(activity.notes.enumerated()), id: \.offset) { _, n in
                         VStack(alignment: .leading, spacing: 1) {
                             Text(n.text).scaledFont(.callout)
@@ -246,12 +246,12 @@ private struct DayDetail: View {
                 }
             }
             if !activity.created.isEmpty {
-                section("➕ 新建的任务") {
+                section(L("➕ 新建的任务")) {
                     ForEach(activity.created) { t in taskLine(t, time: nil) }
                 }
             }
             if activity.isEmpty {
-                Text(day > Date() ? "还没到这一天。" : "这一天没有完成记录。")
+                Text(day > Date() ? L("还没到这一天。") : L("这一天没有完成记录。"))
                     .scaledFont(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -299,7 +299,7 @@ private struct DayDetail: View {
                 .scaledFont(.callout)
                 .disabled(deleted)
             ForEach(board.tags(for: task).prefix(2)) { TagChip(tag: $0, small: true) }
-            if deleted { Text("已删除").scaledFont(.caption2).foregroundStyle(.tertiary) }
+            if deleted { Text(L("已删除")).scaledFont(.caption2).foregroundStyle(.tertiary) }
             Spacer()
             if let time { Text(time.formatted(.dateTime.hour().minute())).scaledFont(.caption, monospacedDigit: true).foregroundStyle(.secondary) }
         }
@@ -319,11 +319,11 @@ struct AchievementsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("🏆 成就").scaledFont(.title2, weight: .bold)
-                Text("已解锁 \(review.achievements.filter(\.isUnlocked).count)/\(review.achievements.count)")
+                Text(L("🏆 成就")).scaledFont(.title2, weight: .bold)
+                Text(L("已解锁 \(review.achievements.filter(\.isUnlocked).count)/\(review.achievements.count)"))
                     .scaledFont(.callout).foregroundStyle(.secondary)
                 Spacer()
-                Button("完成") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button(L("完成")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 170 * fontScale), spacing: 10)], spacing: 10) {
@@ -339,7 +339,7 @@ struct AchievementsView: View {
                             Text(a.title).scaledFont(.headline)
                             Text(a.detail).scaledFont(.caption).foregroundStyle(.secondary)
                             if let at = a.unlockedAt {
-                                Text("\(at.dayLabel) 解锁").scaledFont(.caption2).foregroundStyle(.green)
+                                Text(L("\(at.dayLabel) 解锁")).scaledFont(.caption2).foregroundStyle(.green)
                             } else {
                                 ProgressView(value: Double(a.progress), total: Double(a.target))
                                 Text("\(a.progress) / \(a.target)").scaledFont(.caption2, monospacedDigit: true).foregroundStyle(.secondary)

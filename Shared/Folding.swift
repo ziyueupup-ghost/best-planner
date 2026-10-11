@@ -8,11 +8,11 @@ enum FoldMode: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: "不折叠"
-        case .all: "整列折叠"
-        case .tag: "按标签折叠"
-        case .priority: "按优先级折叠"
-        case .date: "按日期折叠"
+        case .off: L("不折叠")
+        case .all: L("整列折叠")
+        case .tag: L("按标签折叠")
+        case .priority: L("按优先级折叠")
+        case .date: L("按日期折叠")
         }
     }
 
@@ -91,14 +91,14 @@ extension Board {
         case .off:
             return []
         case .all:
-            return [FoldGroup(key: "all", header: .text("全部任务", symbol: "tray.full", color: column.color), tasks: tasks)]
+            return [FoldGroup(key: "all", header: .text(L("全部任务"), symbol: "tray.full", color: column.color), tasks: tasks)]
         case .tag:
             // A task with several tags goes under its first one.
             var groups = tags.map { tag in
                 FoldGroup(key: "tag-\(tag.id)", header: .tag(tag),
                           tasks: tasks.filter { t in t.tagIDs.first { self.tag($0) != nil } == tag.id })
             }
-            groups.append(FoldGroup(key: "tag-none", header: .text("无标签", symbol: "tag.slash", color: .secondary),
+            groups.append(FoldGroup(key: "tag-none", header: .text(L("无标签"), symbol: "tag.slash", color: .secondary),
                                     tasks: tasks.filter { t in !t.tagIDs.contains { self.tag($0) != nil } }))
             return groups.filter { !$0.tasks.isEmpty }
         case .priority:
@@ -131,34 +131,34 @@ private struct DateBucket {
     private static func sameMonth(_ d: Date) -> Bool { cal.isDate(d, equalTo: Date(), toGranularity: .month) }
 
     static let completed: [DateBucket] = [
-        DateBucket(key: "today", title: "今天完成", symbol: "sun.max", color: .orange) { d in d.map { cal.isDateInToday($0) } ?? false },
-        DateBucket(key: "yesterday", title: "昨天完成", symbol: "moon", color: .indigo) { d in d.map { cal.isDateInYesterday($0) } ?? false },
-        DateBucket(key: "week", title: "本周完成", symbol: "calendar", color: .blue) { d in
+        DateBucket(key: "today", title: L("今天完成"), symbol: "sun.max", color: .orange) { d in d.map { cal.isDateInToday($0) } ?? false },
+        DateBucket(key: "yesterday", title: L("昨天完成"), symbol: "moon", color: .indigo) { d in d.map { cal.isDateInYesterday($0) } ?? false },
+        DateBucket(key: "week", title: L("本周完成"), symbol: "calendar", color: .blue) { d in
             guard let d else { return false }
             return d < day(-1) && sameWeek(d)
         },
-        DateBucket(key: "month", title: "本月完成", symbol: "calendar.circle", color: .teal) { d in
+        DateBucket(key: "month", title: L("本月完成"), symbol: "calendar.circle", color: .teal) { d in
             guard let d else { return false }
             return d < day(-1) && !sameWeek(d) && sameMonth(d)
         },
-        DateBucket(key: "earlier", title: "更早完成", symbol: "archivebox", color: .gray) { d in
+        DateBucket(key: "earlier", title: L("更早完成"), symbol: "archivebox", color: .gray) { d in
             guard let d else { return true }
             return d < day(-1) && !sameWeek(d) && !sameMonth(d)
         },
     ]
 
     static let upcoming: [DateBucket] = [
-        DateBucket(key: "overdue", title: "已过期", symbol: "exclamationmark.triangle", color: .red) { d in d.map { $0 < today } ?? false },
-        DateBucket(key: "today", title: "今天", symbol: "sun.max", color: .orange) { d in d.map { cal.isDateInToday($0) } ?? false },
-        DateBucket(key: "tomorrow", title: "明天", symbol: "sunrise", color: .yellow) { d in d.map { cal.isDateInTomorrow($0) } ?? false },
-        DateBucket(key: "week", title: "本周", symbol: "calendar", color: .blue) { d in
+        DateBucket(key: "overdue", title: L("已过期"), symbol: "exclamationmark.triangle", color: .red) { d in d.map { $0 < today } ?? false },
+        DateBucket(key: "today", title: L("今天"), symbol: "sun.max", color: .orange) { d in d.map { cal.isDateInToday($0) } ?? false },
+        DateBucket(key: "tomorrow", title: L("明天"), symbol: "sunrise", color: .yellow) { d in d.map { cal.isDateInTomorrow($0) } ?? false },
+        DateBucket(key: "week", title: L("本周"), symbol: "calendar", color: .blue) { d in
             guard let d else { return false }
             return d >= day(2) && sameWeek(d)
         },
-        DateBucket(key: "later", title: "以后", symbol: "calendar.badge.clock", color: .purple) { d in
+        DateBucket(key: "later", title: L("以后"), symbol: "calendar.badge.clock", color: .purple) { d in
             guard let d else { return false }
             return d >= day(2) && !sameWeek(d)
         },
-        DateBucket(key: "none", title: "无日期", symbol: "calendar.badge.minus", color: .gray) { d in d == nil },
+        DateBucket(key: "none", title: L("无日期"), symbol: "calendar.badge.minus", color: .gray) { d in d == nil },
     ]
 }

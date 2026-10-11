@@ -16,7 +16,7 @@ struct ColorSwatchPicker: View {
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
         }
         .buttonStyle(.plain)
-        .help("选择颜色")
+        .help(L("选择颜色"))
         .popover(isPresented: $show, arrowEdge: .bottom) {
             VStack(alignment: .leading, spacing: 10) {
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(24), spacing: 6), count: 8), spacing: 6) {
@@ -40,7 +40,7 @@ struct ColorSwatchPicker: View {
                 }
                 Divider()
                 HStack {
-                    Text("更多颜色").scaledFont(.callout).foregroundStyle(.secondary)
+                    Text(L("更多颜色")).scaledFont(.callout).foregroundStyle(.secondary)
                     Spacer()
                     ColorPicker("", selection: Binding(
                         get: { Color(hex: hex) }, set: { hex = $0.hexString }

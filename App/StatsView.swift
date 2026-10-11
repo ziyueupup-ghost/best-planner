@@ -47,36 +47,36 @@ struct StatsView: View {
 
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("统计", systemImage: "chart.bar.xaxis").scaledFont(.title2, weight: .bold)
+                Label(L("统计"), systemImage: "chart.bar.xaxis").scaledFont(.title2, weight: .bold)
                 Spacer()
-                Button("完成") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button(L("完成")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 12) {
-                        tile("本周完成", "\(weekDone)", "个任务", .green)
-                        tile("本周专注", weekFocus >= 60 ? String(format: "%.1f", Double(weekFocus) / 60) : "\(weekFocus)",
-                             weekFocus >= 60 ? "小时" : "分钟", .orange)
-                        tile("本周新建", "\(weekCreated)", "个任务", .blue)
-                        tile("还没完成", "\(open)", "个任务", .purple)
+                        tile(L("本周完成"), "\(weekDone)", L("个任务"), .green)
+                        tile(L("本周专注"), weekFocus >= 60 ? String(format: "%.1f", Double(weekFocus) / 60) : "\(weekFocus)",
+                             weekFocus >= 60 ? L("小时") : L("分钟"), .orange)
+                        tile(L("本周新建"), "\(weekCreated)", L("个任务"), .blue)
+                        tile(L("还没完成"), "\(open)", L("个任务"), .purple)
                     }
 
-                    section("最近 14 天完成的任务") {
+                    section(L("最近 14 天完成的任务")) {
                         Chart(completedPerDay) { d in
-                            BarMark(x: .value("日期", d.day, unit: .day), y: .value("完成", d.value))
+                            BarMark(x: .value(L("日期"), d.day, unit: .day), y: .value(L("完成|history"), d.value))
                                 .foregroundStyle(Color.green.gradient)
                         }
                         .chartXAxis { AxisMarks(values: .stride(by: .day, count: 2)) { _ in AxisValueLabel(format: .dateTime.month(.defaultDigits).day()) } }
                         .frame(height: 150 * fontScale)
                     }
 
-                    section("最近 14 天专注时间（分钟）") {
+                    section(L("最近 14 天专注时间（分钟）")) {
                         if sessions.isEmpty {
-                            Text("还没有专注记录。在任务的右键菜单或编辑窗口里点「开始专注 🍅」。")
+                            Text(L("还没有专注记录。在任务的右键菜单或编辑窗口里点「开始专注 🍅」。"))
                                 .scaledFont(.callout).foregroundStyle(.secondary)
                         } else {
                             Chart(focusPerDay) { d in
-                                BarMark(x: .value("日期", d.day, unit: .day), y: .value("分钟", d.value))
+                                BarMark(x: .value(L("日期"), d.day, unit: .day), y: .value(L("分钟"), d.value))
                                     .foregroundStyle(Color.orange.gradient)
                             }
                             .chartXAxis { AxisMarks(values: .stride(by: .day, count: 2)) { _ in AxisValueLabel(format: .dateTime.month(.defaultDigits).day()) } }
@@ -84,12 +84,12 @@ struct StatsView: View {
                         }
                     }
 
-                    section("最近 30 天按标签完成") {
+                    section(L("最近 30 天按标签完成")) {
                         if byTag.isEmpty {
-                            Text("最近 30 天还没有带标签的已完成任务。").scaledFont(.callout).foregroundStyle(.secondary)
+                            Text(L("最近 30 天还没有带标签的已完成任务。")).scaledFont(.callout).foregroundStyle(.secondary)
                         } else {
                             Chart(byTag) { t in
-                                BarMark(x: .value("完成", t.value), y: .value("标签", t.tag.name))
+                                BarMark(x: .value(L("完成|history"), t.value), y: .value(L("标签"), t.tag.name))
                                     .foregroundStyle(t.tag.color)
                                     .annotation(position: .trailing) { Text("\(t.value)").scaledFont(.caption) }
                             }
@@ -98,12 +98,12 @@ struct StatsView: View {
                     }
 
                     if !topFocus.isEmpty {
-                        section("专注时间最多的任务") {
+                        section(L("专注时间最多的任务")) {
                             ForEach(Array(topFocus)) { t in
                                 HStack {
                                     Text(t.title).lineLimit(1)
                                     Spacer()
-                                    Text("🍅 \(t.focusMinutes) 分钟").scaledFont(.callout, monospacedDigit: true).foregroundStyle(.secondary)
+                                    Text(L("🍅 \(t.focusMinutes) 分钟")).scaledFont(.callout, monospacedDigit: true).foregroundStyle(.secondary)
                                 }
                             }
                         }

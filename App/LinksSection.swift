@@ -15,15 +15,15 @@ struct LinksSection: View {
             }
             HStack {
                 Image(systemName: "link").foregroundStyle(.secondary)
-                TextField("网址", text: $newURL, prompt: Text("粘贴网址，回车添加"))
+                TextField(L("网址"), text: $newURL, prompt: Text(L("粘贴网址，回车添加")))
                     .labelsHidden()
                     .onSubmit(addURL)
-                Button("添加文件…", action: pickFiles)
+                Button(L("添加文件…"), action: pickFiles)
             }
         } header: {
-            Text(links.isEmpty ? "附件和链接" : "附件和链接（\(links.count)）")
+            Text(links.isEmpty ? L("附件和链接") : L("附件和链接（\(links.count)）"))
         } footer: {
-            Text("可以把文件或文件夹直接拖到这里。文件不会被复制，只记住它在电脑上的位置。")
+            Text(L("可以把文件或文件夹直接拖到这里。文件不会被复制，只记住它在电脑上的位置。"))
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -48,7 +48,7 @@ struct LinksSection: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        panel.prompt = "添加"
+        panel.prompt = L("添加")
         if panel.runModal() == .OK { add(panel.urls) }
     }
 
@@ -79,22 +79,22 @@ private struct LinkRow: View {
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(link.title).lineLimit(1)
-                Text(missing ? "找不到这个文件（可能被移动或删除了）" : (url.map { $0.isFileURL ? $0.deletingLastPathComponent().path : $0.absoluteString } ?? link.url))
+                Text(missing ? L("找不到这个文件（可能被移动或删除了）") : (url.map { $0.isFileURL ? $0.deletingLastPathComponent().path : $0.absoluteString } ?? link.url))
                     .scaledFont(.caption2)
                     .foregroundStyle(missing ? .red : .secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
             Spacer()
-            Button("打开") { if let url { NSWorkspace.shared.open(url) } }
+            Button(L("打开")) { if let url { NSWorkspace.shared.open(url) } }
                 .disabled(missing)
             if link.isFile, let url, !missing {
                 Button { NSWorkspace.shared.activateFileViewerSelecting([url]) } label: { Image(systemName: "folder") }
-                    .help("在访达中显示")
+                    .help(L("在访达中显示"))
             }
             Button(action: remove) { Image(systemName: "minus.circle.fill").foregroundStyle(.secondary) }
                 .buttonStyle(.plain)
-                .help("移除（不会删除文件）")
+                .help(L("移除（不会删除文件）"))
         }
     }
 }
@@ -105,7 +105,7 @@ struct OpenLinksMenu: View {
 
     var body: some View {
         if !links.isEmpty {
-            Menu("打开附件（\(links.count)）") {
+            Menu(L("打开附件（\(links.count)）")) {
                 ForEach(links) { link in
                     Button(link.title) { if let url = URL(string: link.url) { NSWorkspace.shared.open(url) } }
                 }

@@ -1,6 +1,8 @@
 # Best Planner
 
-macOS 看板任务管理 App，带桌面小组件。
+[English](README.en.md)
+
+macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 
 ## 功能
 
@@ -28,6 +30,7 @@ macOS 看板任务管理 App，带桌面小组件。
 - 检查更新（菜单「Best Planner → 检查更新…」，另外每天自动检查一次）
 - iCloud 云盘同步（菜单「Best Planner → 使用 iCloud 云盘同步…」）：同一个 Apple ID 的几台 Mac 用同一份数据
 - 每天自动备份，保留最近 30 天（菜单「Best Planner → 打开备份文件夹」）
+- 中文 / English：默认跟随系统语言，工具栏 🌐 按钮或菜单「Best Planner → 语言」切换，重新打开后生效
 - 所有修改自动保存
 - 桌面小组件（小 / 中 / 大）：显示子任务，可以直接打勾完成任务和子任务
 
@@ -61,6 +64,10 @@ macOS 看板任务管理 App，带桌面小组件。
 
 会在 `dist/` 里生成通用版（苹果芯片 + Intel）的 zip，上传到 GitHub Releases（标签写成 `v版本号`），大家的「检查更新」就能看到。
 
+### 翻译
+
+界面文字在代码里写中文，并用 `L("…")` 包起来；英文在 `Shared/English.swift`，以中文原文为键（插入的值写成 `{}`）。以后新加 `L("…")` 时，记得在那里补上英文。
+
 ## 文件
 
 | 路径 | 内容 |
@@ -73,6 +80,7 @@ macOS 看板任务管理 App，带桌面小组件。
 | `Widget/WidgetIntents.swift` | 小组件上的打勾按钮 |
 | `Resources/make_icon.swift` | 生成 App 图标 |
 | `Resources/make_intents_metadata.py` | 生成小组件打勾按钮需要的 App Intents 元数据 |
+| `Shared/Localization.swift`、`Shared/English.swift` | 中英文切换和英文翻译 |
 | `build.sh` | 编译、签名、安装 |
 
 数据保存在 `~/Library/Application Support/Planner/planner.json`。

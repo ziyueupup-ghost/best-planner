@@ -8,13 +8,13 @@ enum Recurrence: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .none: "不重复"
-        case .daily: "每天"
-        case .weekdays: "每个工作日"
-        case .weekly: "每周"
-        case .biweekly: "每两周"
-        case .monthly: "每月"
-        case .yearly: "每年"
+        case .none: L("不重复")
+        case .daily: L("每天")
+        case .weekdays: L("每个工作日")
+        case .weekly: L("每周")
+        case .biweekly: L("每两周")
+        case .monthly: L("每月")
+        case .yearly: L("每年")
         }
     }
 
@@ -74,7 +74,7 @@ extension Board {
             }
             t.order = topOrder(in: target.id)
             record(from: nil, to: &t, oldColumns: columns)
-            Board.appendHistory(&t, HistoryEntry(kind: .created, text: "重复任务（\(rule.title)）自动生成"))
+            Board.appendHistory(&t, HistoryEntry(kind: .created, text: L("重复任务（\(rule.title)）自动生成")))
             created.append(t)
         }
         tasks.append(contentsOf: created)

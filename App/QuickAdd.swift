@@ -78,7 +78,7 @@ struct QuickAddView: View {
                 Image(systemName: "plus.circle.fill")
                     .scaledFont(.title2)
                     .foregroundStyle(Color.accentColor)
-                TextField("", text: $text, prompt: Text("交初稿 明天下午3点 #论文修改 !紧急 @进行中"))
+                TextField("", text: $text, prompt: Text(L("交初稿 明天下午3点 #论文修改 !紧急 @进行中")))
                     .textFieldStyle(.plain)
                     .scaledFont(.title3)
                     .focused($focused)
@@ -86,11 +86,11 @@ struct QuickAddView: View {
             }
             preview(parsed)
             HStack {
-                Text("#标签  !优先级  @状态  明天/周五/10月15日  下午3点（带时间=提醒）")
+                Text(L("#标签  !优先级  @状态  明天/周五/10月15日  下午3点（带时间=提醒）"))
                     .scaledFont(.caption2)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Text("↩ 添加  esc 关闭")
+                Text(L("↩ 添加  esc 关闭"))
                     .scaledFont(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -111,10 +111,10 @@ struct QuickAddView: View {
     private func preview(_ p: QuickParse) -> some View {
         HStack(spacing: 8) {
             if let added, text.isEmpty {
-                Label("已添加「\(added)」，可以继续输入下一个", systemImage: "checkmark.circle.fill")
+                Label(L("已添加「\(added)」，可以继续输入下一个"), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else if text.isEmpty {
-                Text("输入任务，回车添加").foregroundStyle(.secondary)
+                Text(L("输入任务，回车添加")).foregroundStyle(.secondary)
             } else {
                 let column = p.columnID.flatMap { store.board.column($0) } ?? store.columns.first
                 if let column { chip(column.icon.isEmpty ? column.name : "\(column.icon) \(column.name)", .secondary) }
@@ -124,11 +124,11 @@ struct QuickAddView: View {
                     if let tag = store.tags.first(where: { $0.name == name }) {
                         TagChip(tag: tag, small: true)
                     } else {
-                        chip("#\(name)（新标签）", .secondary)
+                        chip(L("#\(name)（新标签）"), .secondary)
                     }
                 }
                 if let d = p.date {
-                    chip("\(p.dateKind == .reminder ? "⏰ 提醒" : "📌 截止") "
+                    chip("\(p.dateKind == .reminder ? L("⏰ 提醒") : L("📌 截止")) "
                          + (p.hasTime ? d.formatted(.dateTime.month().day().weekday().hour().minute())
                                       : d.formatted(.dateTime.month().day().weekday())),
                          p.dateKind.color)
@@ -197,22 +197,22 @@ struct MenuBarContent: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
-        Button("快速添加任务…") { QuickAddController.shared.show() }
+        Button(L("快速添加任务…")) { QuickAddController.shared.show() }
             .keyboardShortcut("n", modifiers: [.control, .option])
         FocusMenuSection()
         Divider()
         let today = store.board.agendaTasks(through: 0)
         if today.isEmpty {
-            Text("今天没有到期的任务")
+            Text(L("今天没有到期的任务"))
         } else {
-            Text("今天和已过期（\(today.count)）")
+            Text(L("今天和已过期（\(today.count)）"))
             ForEach(today.prefix(8)) { task in
                 Button("  " + task.title) { open(task) }
             }
         }
         Divider()
-        Button("打开 Best Planner") { activateMain() }
-        Toggle("登录时自动启动", isOn: Binding(get: { launchAtLogin }, set: { on in
+        Button(L("打开 Best Planner")) { activateMain() }
+        Toggle(L("登录时自动启动"), isOn: Binding(get: { launchAtLogin }, set: { on in
             do {
                 if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             } catch {
@@ -221,7 +221,7 @@ struct MenuBarContent: View {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }))
         Divider()
-        Button("退出") { NSApp.terminate(nil) }
+        Button(L("退出")) { NSApp.terminate(nil) }
     }
 
     private func activateMain() {
@@ -244,9 +244,9 @@ private struct FocusMenuSection: View {
     var body: some View {
         if timer.isRunning {
             Divider()
-            Text("🍅 \(timer.taskTitle) · \(timer.label)\(timer.isPaused ? "（已暂停）" : "")")
-            Button(timer.isPaused ? "继续专注" : "暂停专注") { timer.togglePause() }
-            Button("结束专注") { timer.stop() }
+            Text("🍅 \(timer.taskTitle) · \(timer.label)\(timer.isPaused ? L("（已暂停）") : "")")
+            Button(timer.isPaused ? L("继续专注") : L("暂停专注")) { timer.togglePause() }
+            Button(L("结束专注")) { timer.stop() }
         }
     }
 }

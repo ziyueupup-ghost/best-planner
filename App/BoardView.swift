@@ -100,14 +100,14 @@ struct BoardView: View {
                 .padding(.bottom, liveSelection.isEmpty ? 0 : 56)
         }
         .onExitCommand { selection.clear() }
-        .alert("删除选中的 \(liveSelection.count) 个任务？", isPresented: $confirmBatchDelete) {
-            Button("移到最近删除", role: .destructive) {
+        .alert(L("删除选中的 \(liveSelection.count) 个任务？"), isPresented: $confirmBatchDelete) {
+            Button(L("移到最近删除"), role: .destructive) {
                 withAnimation(.snappy) { store.deleteTasks(liveSelection) }
                 selection.clear()
             }
-            Button("取消", role: .cancel) {}
+            Button(L("取消"), role: .cancel) {}
         } message: {
-            Text("30 天内可以在「最近删除」里恢复。")
+            Text(L("30 天内可以在「最近删除」里恢复。"))
         }
     }
 
@@ -115,24 +115,30 @@ struct BoardView: View {
     private var decorated: some View {
         mainArea
         .background(Color(nsColor: .windowBackgroundColor))
-        .searchable(text: $search, placement: .toolbar, prompt: "搜索任务")
+        .searchable(text: $search, placement: .toolbar, prompt: L("搜索任务"))
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Picker("视图", selection: $viewMode) {
-                    Label("看板", systemImage: "rectangle.split.3x1").tag("board")
-                    Label("日程", systemImage: "calendar.day.timeline.left").tag("agenda")
-                    Label("回顾", systemImage: "calendar").tag("review")
+                Picker(L("视图"), selection: $viewMode) {
+                    Label(L("看板"), systemImage: "rectangle.split.3x1").tag("board")
+                    Label(L("日程"), systemImage: "calendar.day.timeline.left").tag("agenda")
+                    Label(L("回顾"), systemImage: "calendar").tag("review")
                 }
                 .pickerStyle(.segmented)
-                .help("看板：按状态分列；日程：按日期看没完成的任务；回顾：日历看每天完成了什么，还有成就")
+                .help(L("看板：按状态分列；日程：按日期看没完成的任务；回顾：日历看每天完成了什么，还有成就"))
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Menu {
+                    LanguageChoices()
+                } label: {
+                    Label(L("语言 / Language"), systemImage: "globe")
+                }
+                .help(L("切换语言：中文 / English"))
                 Toggle(isOn: Binding(get: { selection.mode }, set: { on in
                     if on { selection.mode = true } else { selection.clear() }
                 })) {
-                    Label("选择", systemImage: selection.mode ? "checkmark.circle.fill" : "checkmark.circle")
+                    Label(L("选择"), systemImage: selection.mode ? "checkmark.circle.fill" : "checkmark.circle")
                 }
-                .help("多选任务：打开后单击卡片选择（不打开也可以 ⌘+单击），然后一起移动或删除")
+                .help(L("多选任务：打开后单击卡片选择（不打开也可以 ⌘+单击），然后一起移动或删除"))
                 fontSizeMenu
                 sortMenu
                 tagFilterMenu
@@ -140,30 +146,30 @@ struct BoardView: View {
                 Button {
                     showSettings = true
                 } label: {
-                    Label("管理状态和标签", systemImage: "slider.horizontal.3")
+                    Label(L("管理状态和标签"), systemImage: "slider.horizontal.3")
                 }
-                .help("管理状态和标签 (⌘,)")
+                .help(L("管理状态和标签 (⌘,)"))
 
                 Button {
                     showStats = true
                 } label: {
-                    Label("统计", systemImage: "chart.bar.xaxis")
+                    Label(L("统计"), systemImage: "chart.bar.xaxis")
                 }
-                .help("统计：完成数量、专注时间、按标签")
+                .help(L("统计：完成数量、专注时间、按标签"))
 
                 Button {
                     showTrash = true
                 } label: {
-                    Label("最近删除", systemImage: store.board.trash.isEmpty ? "trash" : "trash.fill")
+                    Label(L("最近删除"), systemImage: store.board.trash.isEmpty ? "trash" : "trash.fill")
                 }
-                .help("最近删除（\(store.board.trash.count) 项，保留 30 天，可以恢复）")
+                .help(L("最近删除（\(store.board.trash.count) 项，保留 30 天，可以恢复）"))
 
                 Button {
                     creatingIn = store.columns.first.map { ColumnRef(id: $0.id) }
                 } label: {
-                    Label("新建任务", systemImage: "plus")
+                    Label(L("新建任务"), systemImage: "plus")
                 }
-                .help("新建任务 (⌘N)")
+                .help(L("新建任务 (⌘N)"))
             }
         }
     }
@@ -213,22 +219,22 @@ struct BoardView: View {
         .onReceive(NotificationCenter.default.publisher(for: .iCloudToggleRequested)) { _ in
             confirmICloud = true
         }
-        .alert(store.usesICloud ? "关闭 iCloud 云盘同步？" : "使用 iCloud 云盘同步？", isPresented: $confirmICloud) {
-            Button(store.usesICloud ? "关闭同步" : "开始同步") {
+        .alert(store.usesICloud ? L("关闭 iCloud 云盘同步？") : L("使用 iCloud 云盘同步？"), isPresented: $confirmICloud) {
+            Button(store.usesICloud ? L("关闭同步") : L("开始同步")) {
                 do { try store.setICloudSync(!store.usesICloud) } catch { iCloudError = error.localizedDescription }
             }
-            Button("取消", role: .cancel) {}
+            Button(L("取消"), role: .cancel) {}
         } message: {
             if store.usesICloud {
-                Text("数据会从 iCloud 云盘拷回这台 Mac，之后只保存在本机，不再和其他 Mac 同步。")
+                Text(L("数据会从 iCloud 云盘拷回这台 Mac，之后只保存在本机，不再和其他 Mac 同步。"))
             } else if PlannerStorage.iCloudHasData {
-                Text("iCloud 云盘里已经有另一台 Mac 的数据，开启后这台 Mac 会改用 iCloud 里的数据。这台 Mac 现在的数据会先自动备份（菜单「打开备份文件夹」里能找到）。")
+                Text(L("iCloud 云盘里已经有另一台 Mac 的数据，开启后这台 Mac 会改用 iCloud 里的数据。这台 Mac 现在的数据会先自动备份（菜单「打开备份文件夹」里能找到）。"))
             } else {
-                Text("数据会放到 iCloud 云盘的「Best Planner」文件夹，登录同一个 Apple ID 的 Mac 都能用同一份。本机也会保留一份镜像。注意：两台 Mac 同时修改时，以最后保存的为准。")
+                Text(L("数据会放到 iCloud 云盘的「Best Planner」文件夹，登录同一个 Apple ID 的 Mac 都能用同一份。本机也会保留一份镜像。注意：两台 Mac 同时修改时，以最后保存的为准。"))
             }
         }
-        .alert("没能切换同步", isPresented: Binding(get: { iCloudError != nil }, set: { if !$0 { iCloudError = nil } })) {
-            Button("好") {}
+        .alert(L("没能切换同步"), isPresented: Binding(get: { iCloudError != nil }, set: { if !$0 { iCloudError = nil } })) {
+            Button(L("好")) {}
         } message: {
             Text(iCloudError ?? "")
         }
@@ -304,7 +310,7 @@ struct BoardView: View {
     private var batchBarContent: some View {
         let ids = liveSelection
         return HStack(spacing: 10) {
-            Text("已选 \(ids.count) 项")
+            Text(L("已选 \(ids.count) 项"))
                 .scaledFont(.callout, weight: .semibold)
             Divider().frame(height: 18)
             Menu {
@@ -314,16 +320,16 @@ struct BoardView: View {
                     }
                 }
             } label: {
-                Label("移到状态", systemImage: "arrow.right.square")
+                Label(L("移到状态"), systemImage: "arrow.right.square")
             }
             .fixedSize()
-            Button { withAnimation(.snappy) { store.shiftTasks(ids, by: -1) } } label: { Label("上移", systemImage: "arrow.up") }
-            Button { withAnimation(.snappy) { store.shiftTasks(ids, by: 1) } } label: { Label("下移", systemImage: "arrow.down") }
-            Button { withAnimation(.snappy) { store.moveTasksToEdge(ids, top: true) } } label: { Label("最上", systemImage: "arrow.up.to.line") }
-            Button { withAnimation(.snappy) { store.moveTasksToEdge(ids, top: false) } } label: { Label("最下", systemImage: "arrow.down.to.line") }
+            Button { withAnimation(.snappy) { store.shiftTasks(ids, by: -1) } } label: { Label(L("上移"), systemImage: "arrow.up") }
+            Button { withAnimation(.snappy) { store.shiftTasks(ids, by: 1) } } label: { Label(L("下移"), systemImage: "arrow.down") }
+            Button { withAnimation(.snappy) { store.moveTasksToEdge(ids, top: true) } } label: { Label(L("最上"), systemImage: "arrow.up.to.line") }
+            Button { withAnimation(.snappy) { store.moveTasksToEdge(ids, top: false) } } label: { Label(L("最下"), systemImage: "arrow.down.to.line") }
             Divider().frame(height: 18)
-            Button(role: .destructive) { confirmBatchDelete = true } label: { Label("删除…", systemImage: "trash") }
-            Button("完成") { selection.clear() }
+            Button(role: .destructive) { confirmBatchDelete = true } label: { Label(L("删除…"), systemImage: "trash") }
+            Button(L("完成")) { selection.clear() }
                 .keyboardShortcut(.defaultAction)
         }
         .fixedSize()
@@ -340,7 +346,7 @@ struct BoardView: View {
                 HStack(spacing: 10) {
                     Text(a.icon).font(.system(size: 30 * fontScale))
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("解锁成就：\(a.title)").scaledFont(.headline)
+                        Text(L("解锁成就：\(a.title)")).scaledFont(.headline)
                         Text(a.detail).scaledFont(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -388,12 +394,12 @@ struct BoardView: View {
                 }
             }
             Divider()
-            Button("放大字体") { storedFontScale = FontScale.clamped(storedFontScale + FontScale.step) }
-            Button("缩小字体") { storedFontScale = FontScale.clamped(storedFontScale - FontScale.step) }
+            Button(L("放大字体")) { storedFontScale = FontScale.clamped(storedFontScale + FontScale.step) }
+            Button(L("缩小字体")) { storedFontScale = FontScale.clamped(storedFontScale - FontScale.step) }
         } label: {
-            Label("字体大小", systemImage: "textformat.size")
+            Label(L("字体大小"), systemImage: "textformat.size")
         }
-        .help("字体大小：\(FontScale.title(for: storedFontScale))（⌘+ 放大，⌘- 缩小，⌘0 还原）")
+        .help(L("字体大小：\(FontScale.title(for: storedFontScale))（⌘+ 放大，⌘- 缩小，⌘0 还原）"))
     }
 
     private var sortMenu: some View {
@@ -406,9 +412,9 @@ struct BoardView: View {
                 }
             }
         } label: {
-            Label("排序", systemImage: "arrow.up.arrow.down")
+            Label(L("排序"), systemImage: "arrow.up.arrow.down")
         }
-        .help("任务排序方式：\(store.board.sortMode.title)")
+        .help(L("任务排序方式：\(store.board.sortMode.title)"))
     }
 
     private var tagFilterMenu: some View {
@@ -416,7 +422,7 @@ struct BoardView: View {
             Button {
                 tagFilter = nil
             } label: {
-                if tagFilter == nil { Label("全部标签", systemImage: "checkmark") } else { Text("全部标签") }
+                if tagFilter == nil { Label(L("全部标签"), systemImage: "checkmark") } else { Text(L("全部标签")) }
             }
             if !store.tags.isEmpty { Divider() }
             ForEach(store.tags) { tag in
@@ -427,10 +433,10 @@ struct BoardView: View {
                 }
             }
         } label: {
-            Label(tagFilter.flatMap { store.board.tag($0)?.name } ?? "标签",
+            Label(tagFilter.flatMap { store.board.tag($0)?.name } ?? L("标签"),
                   systemImage: tagFilter == nil ? "tag" : "tag.fill")
         }
-        .help("按标签筛选")
+        .help(L("按标签筛选"))
     }
 
     private var filtered: [PlannerTask] {
@@ -479,7 +485,7 @@ struct ColumnView: View {
                     Image(systemName: "checkmark.seal.fill")
                         .scaledFont(.caption)
                         .foregroundStyle(column.color)
-                        .help("完成列")
+                        .help(L("完成列"))
                 }
                 Text("\(tasks.count)")
                     .scaledFont(.caption, monospacedDigit: true)
@@ -493,7 +499,7 @@ struct ColumnView: View {
                     Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .help("在「\(column.name)」中添加任务")
+                .help(L("在「\(column.name)」中添加任务"))
             }
             .padding(.horizontal, 4)
 
@@ -529,7 +535,7 @@ struct ColumnView: View {
                         }
                     }
                     if tasks.isEmpty {
-                        Text("拖动任务到这里")
+                        Text(L("拖动任务到这里"))
                             .scaledFont(.callout)
                             .foregroundStyle(.tertiary)
                             .frame(maxWidth: .infinity, minHeight: 80)
@@ -548,13 +554,13 @@ struct ColumnView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(column.color.opacity(isTargeted ? 0.6 : 0), lineWidth: 2)
         )
-        .alert("清空「\(column.name)」？", isPresented: $confirmClear) {
-            Button("移到最近删除", role: .destructive) {
+        .alert(L("清空「\(column.name)」？"), isPresented: $confirmClear) {
+            Button(L("移到最近删除"), role: .destructive) {
                 withAnimation(.snappy) { store.clearColumn(column.id) }
             }
-            Button("取消", role: .cancel) {}
+            Button(L("取消"), role: .cancel) {}
         } message: {
-            Text("这一列的 \(store.board.tasks(in: column.id).count) 个任务会移到「最近删除」，30 天内可以恢复。")
+            Text(L("这一列的 \(store.board.tasks(in: column.id).count) 个任务会移到「最近删除」，30 天内可以恢复。"))
         }
         .dropDestination(for: String.self) { items, _ in
             guard let item = items.first else { return false }
@@ -591,7 +597,7 @@ extension ColumnView {
 
     fileprivate var foldMenu: some View {
         Menu {
-            Picker("折叠方式", selection: Binding(
+            Picker(L("折叠方式"), selection: Binding(
                 get: { column.foldMode },
                 set: { mode in withAnimation(.snappy) { store.setFoldMode(column.id, mode) } }
             )) {
@@ -602,18 +608,18 @@ extension ColumnView {
             .pickerStyle(.inline)
             if column.foldMode != .off {
                 Divider()
-                Button("全部展开") { withAnimation(.snappy) { store.setAllGroups(column.id, expanded: true) } }
-                Button("全部折叠") { withAnimation(.snappy) { store.setAllGroups(column.id, expanded: false) } }
+                Button(L("全部展开")) { withAnimation(.snappy) { store.setAllGroups(column.id, expanded: true) } }
+                Button(L("全部折叠")) { withAnimation(.snappy) { store.setAllGroups(column.id, expanded: false) } }
                 if column.foldMode != .all {
-                    Button("恢复默认分组顺序") { withAnimation(.snappy) { store.resetGroupOrder(column.id) } }
+                    Button(L("恢复默认分组顺序")) { withAnimation(.snappy) { store.resetGroupOrder(column.id) } }
                         .disabled(column.groupOrder.isEmpty)
                 }
             }
             Divider()
-            Button("清空这一列…") { confirmClear = true }
+            Button(L("清空这一列…")) { confirmClear = true }
                 .disabled(store.board.tasks(in: column.id).isEmpty)
             Divider()
-            Picker("列宽（也可以拖动列的右边缘）", selection: Binding(
+            Picker(L("列宽（也可以拖动列的右边缘）"), selection: Binding(
                 get: { column.width ?? 0 },
                 set: { w in withAnimation(.snappy) { store.setColumnWidth(column.id, w == 0 ? nil : w) } }
             )) {
@@ -621,7 +627,7 @@ extension ColumnView {
                     Text(preset.title).tag(preset.value)
                 }
                 if let w = column.width, !ColumnWidthPreset.all.contains(where: { $0.value == w }) {
-                    Text("自定义（\(Int(w))）").tag(w)
+                    Text(L("自定义（\(Int(w))）")).tag(w)
                 }
             }
             .pickerStyle(.inline)
@@ -632,7 +638,7 @@ extension ColumnView {
         .menuIndicator(.hidden)
         .fixedSize()
         .foregroundStyle(column.foldMode == .off ? Color.secondary : column.color)
-        .help("列选项：折叠方式、列宽、清空这一列")
+        .help(L("列选项：折叠方式、列宽、清空这一列"))
     }
 }
 
@@ -682,7 +688,7 @@ struct FoldGroupHeader: View {
                     Image(systemName: "line.3.horizontal")
                         .scaledFont(.caption)
                         .foregroundStyle(.tertiary)
-                        .help("拖动可以调整分组顺序")
+                        .help(L("拖动可以调整分组顺序"))
                 }
             }
             .padding(.horizontal, 8)
@@ -695,7 +701,7 @@ struct FoldGroupHeader: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help(expanded ? "点击折叠，拖动调整顺序" : "点击展开，拖动调整顺序")
+        .help(expanded ? L("点击折叠，拖动调整顺序") : L("点击展开，拖动调整顺序"))
         .draggable(Self.dragPrefix + group.key)
         .dropDestination(for: String.self) { items, _ in
             guard let item = items.first, item.hasPrefix(Self.dragPrefix) else { return false }
@@ -708,11 +714,11 @@ struct FoldGroupHeader: View {
             }
         }
         .contextMenu {
-            Button("上移") { shift(-1) }.disabled(isFirst)
-            Button("下移") { shift(1) }.disabled(isLast)
+            Button(L("上移")) { shift(-1) }.disabled(isFirst)
+            Button(L("下移")) { shift(1) }.disabled(isLast)
             Divider()
-            Button("移到最上面") { moveToEdge(true) }.disabled(isFirst)
-            Button("移到最下面") { moveToEdge(false) }.disabled(isLast)
+            Button(L("移到最上面")) { moveToEdge(true) }.disabled(isFirst)
+            Button(L("移到最下面")) { moveToEdge(false) }.disabled(isLast)
         }
     }
 }
@@ -767,12 +773,12 @@ struct TaskCard: View {
                         DateLine(date: d, overdue: board.isOverdue(d, of: task))
                     }
                     if task.notificationsOff, task.dates.contains(where: { $0.kind == .reminder || $0.kind == .deadline }) {
-                        Label("不发通知", systemImage: "bell.slash")
+                        Label(L("不发通知"), systemImage: "bell.slash")
                             .scaledFont(.caption2)
                             .foregroundStyle(.tertiary)
                     }
                     if task.dates.count > 3 {
-                        Text("还有 \(task.dates.count - 3) 个日期")
+                        Text(L("还有 \(task.dates.count - 3) 个日期"))
                             .scaledFont(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -780,14 +786,14 @@ struct TaskCard: View {
             }
 
             if !task.links.isEmpty {
-                Label("\(task.links.count) 个附件", systemImage: "paperclip")
+                Label(L("\(task.links.count) 个附件"), systemImage: "paperclip")
                     .scaledFont(.caption)
                     .foregroundStyle(.secondary)
                     .help(task.links.map(\.title).joined(separator: "\n"))
             }
 
             if task.focusMinutes > 0 {
-                Text("🍅 专注 \(task.focusMinutes) 分钟")
+                Text(L("🍅 专注 \(task.focusMinutes) 分钟"))
                     .scaledFont(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -796,11 +802,11 @@ struct TaskCard: View {
                 Label(task.recurrence.title, systemImage: "repeat")
                     .scaledFont(.caption)
                     .foregroundStyle(.secondary)
-                    .help("重复任务：完成后会自动生成下一次")
+                    .help(L("重复任务：完成后会自动生成下一次"))
             }
 
             if done, let completed = task.completedAt {
-                Label("完成于 \(completed.dayLabel)", systemImage: "checkmark.circle.fill")
+                Label(L("完成于 \(completed.dayLabel)"), systemImage: "checkmark.circle.fill")
                     .scaledFont(.caption)
                     .foregroundStyle(.green)
             }
@@ -875,32 +881,32 @@ struct TaskCard: View {
             return true
         } isTargeted: { dropTargeted = $0 }
         .contextMenu {
-            Button("编辑…", action: onEdit)
-            Button(isSelected ? "取消选择" : "选择（多选）") { selection.toggle(task.id) }
+            Button(L("编辑…"), action: onEdit)
+            Button(isSelected ? L("取消选择") : L("选择（多选）")) { selection.toggle(task.id) }
             FocusMenu(task: task)
             OpenLinksMenu(links: task.links)
             Divider()
-            Button("复制任务") { duplicate(resetChecks: false) }
+            Button(L("复制任务")) { duplicate(resetChecks: false) }
             if task.subtasks.contains(where: \.isDone) {
-                Button("复制任务（子任务清空勾选）") { duplicate(resetChecks: true) }
+                Button(L("复制任务（子任务清空勾选）")) { duplicate(resetChecks: true) }
             }
             Divider()
-            Button("移到最上面") { withAnimation(.snappy) { store.moveToTop(task.id) } }
-            Button("移到最下面") { withAnimation(.snappy) { store.moveToBottom(task.id) } }
-            Menu("移动到") {
+            Button(L("移到最上面")) { withAnimation(.snappy) { store.moveToTop(task.id) } }
+            Button(L("移到最下面")) { withAnimation(.snappy) { store.moveToBottom(task.id) } }
+            Menu(L("移动到")) {
                 ForEach(board.columns) { c in
                     Button(c.name) { store.move(task.id, to: c.id) }
                         .disabled(c.id == task.columnID)
                 }
             }
             Divider()
-            Button("删除…", role: .destructive) { confirmDelete = true }
+            Button(L("删除…"), role: .destructive) { confirmDelete = true }
         }
-        .alert("删除「\(task.title)」？", isPresented: $confirmDelete) {
-            Button("移到最近删除", role: .destructive) { withAnimation(.snappy) { store.delete(task.id) } }
-            Button("取消", role: .cancel) {}
+        .alert(L("删除「\(task.title)」？"), isPresented: $confirmDelete) {
+            Button(L("移到最近删除"), role: .destructive) { withAnimation(.snappy) { store.delete(task.id) } }
+            Button(L("取消"), role: .cancel) {}
         } message: {
-            Text("30 天内可以在「最近删除」里恢复。")
+            Text(L("30 天内可以在「最近删除」里恢复。"))
         }
     }
 
@@ -969,7 +975,7 @@ struct TaskCard: View {
         .buttonStyle(.plain)
         .foregroundStyle(target != nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.quaternary))
         .disabled(target == nil)
-        .help(target.map { "移到「\($0.name)」" } ?? "")
+        .help(target.map { L("移到「\($0.name)」") } ?? "")
     }
 }
 
@@ -994,7 +1000,7 @@ struct DateLine: View {
                     .lineLimit(1)
             }
             if overdue {
-                Text("已过期").foregroundStyle(.red)
+                Text(L("已过期")).foregroundStyle(.red)
             }
         }
         .scaledFont(.caption)
@@ -1016,7 +1022,7 @@ struct PriorityMark: View {
                     .scaledFont(.caption)
             }
         }
-        .help("优先级：\(level.name)")
+        .help(L("优先级：\(level.name)"))
     }
 }
 
@@ -1057,13 +1063,13 @@ struct ColumnResizeHandle: View {
                     }
             )
             .onTapGesture(count: 2, perform: onReset)
-            .help(isCustom ? "拖动调整宽度，双击恢复自动宽度" : "拖动调整这一列的宽度")
+            .help(isCustom ? L("拖动调整宽度，双击恢复自动宽度") : L("拖动调整这一列的宽度"))
     }
 }
 
 enum ColumnWidthPreset {
     /// 0 means automatic (share the window evenly).
     static let all: [(value: Double, title: String)] = [
-        (0, "自动"), (160, "很窄"), (220, "窄"), (300, "标准"), (380, "宽"), (480, "很宽"),
+        (0, L("自动")), (160, L("很窄")), (220, L("窄")), (300, L("标准")), (380, L("宽")), (480, L("很宽")),
     ]
 }

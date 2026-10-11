@@ -27,13 +27,13 @@ struct Provider: TimelineProvider {
 
     static var sample: Board {
         var b = Board.empty
-        var t1 = PlannerTask(title: "写周报", columnID: "todo")
+        var t1 = PlannerTask(title: L("写周报"), columnID: "todo")
         t1.priorityID = "urgent"
         t1.tagIDs = [b.tags[0].id]
         t1.dates = [TaskDate(kind: .deadline, date: Date().addingTimeInterval(86_400))]
-        var t2 = PlannerTask(title: "设计新页面", columnID: "doing")
-        t2.subtasks = [Subtask(title: "草图", isDone: true), Subtask(title: "高保真")]
-        b.tasks = [t1, t2, PlannerTask(title: "回复邮件", columnID: "todo"), PlannerTask(title: "整理笔记", columnID: "done")]
+        var t2 = PlannerTask(title: L("设计新页面"), columnID: "doing")
+        t2.subtasks = [Subtask(title: L("草图"), isDone: true), Subtask(title: L("高保真"))]
+        b.tasks = [t1, t2, PlannerTask(title: L("回复邮件"), columnID: "todo"), PlannerTask(title: L("整理笔记"), columnID: "done")]
         return b
     }
 }
@@ -89,7 +89,7 @@ struct PlannerWidgetView: View {
                 .padding(.bottom, 2)
             if next.isEmpty {
                 Spacer(minLength: 0)
-                Text("全部完成 🎉").font(.caption).foregroundStyle(.secondary)
+                Text(L("全部完成 🎉")).font(.caption).foregroundStyle(.secondary)
             } else {
                 rowList(rows(next, budget: 4, key: "small"), showMeta: false)
             }
@@ -146,7 +146,7 @@ struct PlannerWidgetView: View {
                 Text("\(tasks.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
             if tasks.isEmpty {
-                Text("暂无任务").font(.caption).foregroundStyle(.tertiary)
+                Text(L("暂无任务")).font(.caption).foregroundStyle(.tertiary)
             }
             rowList(rows(tasks, budget: budget, key: c.id), showMeta: true)
         }
@@ -177,7 +177,7 @@ struct PlannerWidgetView: View {
                 case .task(let t): taskRow(t, showMeta: showMeta)
                 case .subtask(let t, let s): subtaskRow(t, s)
                 case .more(_, let n):
-                    Text("还有 \(n) 项…").font(.caption2).foregroundStyle(.secondary)
+                    Text(L("还有 \(n) 项…")).font(.caption2).foregroundStyle(.secondary)
                 }
             }
         }
@@ -260,7 +260,7 @@ struct PlannerWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Best Planner")
-        .description("在桌面上查看你的任务看板。")
+        .description(L("在桌面上查看你的任务看板。"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

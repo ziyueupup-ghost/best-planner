@@ -15,13 +15,13 @@ struct AgendaView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack {
-                    Text("日程").scaledFont(.title2, weight: .bold)
-                    Text("所有状态里没完成、有日期的任务").scaledFont(.caption).foregroundStyle(.secondary)
+                    Text(L("日程")).scaledFont(.title2, weight: .bold)
+                    Text(L("所有状态里没完成、有日期的任务")).scaledFont(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Picker("范围", selection: $days) {
-                        Text("7 天").tag(7)
-                        Text("14 天").tag(14)
-                        Text("30 天").tag(30)
+                    Picker(L("范围"), selection: $days) {
+                        Text(L("7 天")).tag(7)
+                        Text(L("14 天")).tag(14)
+                        Text(L("30 天")).tag(30)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -38,7 +38,7 @@ struct AgendaView: View {
                                 .foregroundStyle(.secondary)
                         }
                         if section.tasks.isEmpty {
-                            Text("今天没有到期的任务 🎉")
+                            Text(L("今天没有到期的任务 🎉"))
                                 .scaledFont(.callout)
                                 .foregroundStyle(.secondary)
                                 .padding(.vertical, 4)
@@ -49,7 +49,7 @@ struct AgendaView: View {
                     }
                 }
                 if sections.allSatisfy({ $0.tasks.isEmpty }) {
-                    Text("给任务加上截止、开始、里程碑或提醒日期，就会出现在这里。")
+                    Text(L("给任务加上截止、开始、里程碑或提醒日期，就会出现在这里。"))
                         .scaledFont(.callout)
                         .foregroundStyle(.tertiary)
                 }
@@ -81,7 +81,7 @@ private struct AgendaRow: View {
                     .foregroundStyle(board.accentColor(of: task))
             }
             .buttonStyle(.plain)
-            .help(board.columns.contains(where: \.isDone) ? "完成（移到完成列）" : "还没有设置「完成列」")
+            .help(board.columns.contains(where: \.isDone) ? L("完成（移到完成列）") : L("还没有设置「完成列」"))
             .disabled(!board.columns.contains(where: \.isDone))
 
             PriorityMark(level: board.priority(of: task))
@@ -127,8 +127,8 @@ private struct AgendaRow: View {
         .onHover { hovering = $0 }
         .onTapGesture(count: 2, perform: onEdit)
         .contextMenu {
-            Button("编辑…", action: onEdit)
-            Menu("移到") {
+            Button(L("编辑…"), action: onEdit)
+            Menu(L("移到")) {
                 ForEach(store.columns) { c in
                     Button(c.name) { store.move(task.id, to: c.id) }.disabled(c.id == task.columnID)
                 }

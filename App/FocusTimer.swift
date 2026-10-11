@@ -49,8 +49,8 @@ final class FocusTimer: ObservableObject {
         guard let taskID else { return }
         BoardStore.shared.addFocusSession(taskID, start: startedAt, minutes: totalSeconds / 60)
         let content = UNMutableNotificationContent()
-        content.title = "🍅 专注完成"
-        content.body = "「\(taskTitle)」专注了 \(totalSeconds / 60) 分钟，休息一下吧。"
+        content.title = L("🍅 专注完成")
+        content.body = L("「\(taskTitle)」专注了 \(totalSeconds / 60) 分钟，休息一下吧。")
         content.sound = .default
         content.userInfo = ["taskID": taskID]
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "focus-\(UUID().uuidString)", content: content, trigger: nil))
@@ -90,7 +90,7 @@ struct FocusBar: View {
                 Text("🍅").scaledFont(.title3)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(timer.taskTitle).scaledFont(.callout, weight: .medium).lineLimit(1)
-                    Text(timer.isPaused ? "已暂停" : "专注中").scaledFont(.caption2).foregroundStyle(.secondary)
+                    Text(timer.isPaused ? L("已暂停") : L("专注中")).scaledFont(.caption2).foregroundStyle(.secondary)
                 }
                 Text(timer.label)
                     .scaledFont(.title3, weight: .semibold, monospacedDigit: true)
@@ -98,9 +98,9 @@ struct FocusBar: View {
                 Button { timer.togglePause() } label: {
                     Image(systemName: timer.isPaused ? "play.fill" : "pause.fill")
                 }
-                .help(timer.isPaused ? "继续" : "暂停")
+                .help(timer.isPaused ? L("继续") : L("暂停"))
                 Button { timer.stop() } label: { Image(systemName: "stop.fill") }
-                    .help("结束（已专注的分钟会记录下来）")
+                    .help(L("结束（已专注的分钟会记录下来）"))
             }
             .buttonStyle(.borderless)
             .padding(.horizontal, 14)
@@ -118,9 +118,9 @@ struct FocusMenu: View {
     let task: PlannerTask
 
     var body: some View {
-        Menu("开始专注 🍅") {
+        Menu(L("开始专注 🍅")) {
             ForEach(FocusTimer.durations, id: \.self) { m in
-                Button("\(m) 分钟") { FocusTimer.shared.start(task, minutes: m) }
+                Button(L("\(m) 分钟")) { FocusTimer.shared.start(task, minutes: m) }
             }
         }
     }

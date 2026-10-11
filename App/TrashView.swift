@@ -10,13 +10,13 @@ struct TrashView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("最近删除", systemImage: "trash")
+                Label(L("最近删除"), systemImage: "trash")
                     .scaledFont(.title2, weight: .bold)
                 Spacer()
-                Button("清空", role: .destructive) { confirmEmpty = true }
+                Button(L("清空"), role: .destructive) { confirmEmpty = true }
                     .disabled(store.board.trash.isEmpty)
             }
-            Text("删除的任务会在这里保留 30 天，恢复后回到原来的状态。")
+            Text(L("删除的任务会在这里保留 30 天，恢复后回到原来的状态。"))
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
 
@@ -25,7 +25,7 @@ struct TrashView: View {
                     Image(systemName: "trash.slash")
                         .font(.system(size: 32 * fontScale))
                         .foregroundStyle(.tertiary)
-                    Text("没有删除的任务").foregroundStyle(.secondary)
+                    Text(L("没有删除的任务")).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -42,7 +42,7 @@ struct TrashView: View {
 
             HStack {
                 Spacer()
-                Button("完成") { dismiss() }
+                Button(L("完成")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -50,11 +50,11 @@ struct TrashView: View {
         .frame(width: FontScale.sheetSize(width: 560, height: 480, scale: fontScale).width,
                height: FontScale.sheetSize(width: 560, height: 480, scale: fontScale).height)
         .onExitCommand { dismiss() }
-        .alert("永久删除全部 \(store.board.trash.count) 个任务？", isPresented: $confirmEmpty) {
-            Button("永久删除", role: .destructive) { store.emptyTrash() }
-            Button("取消", role: .cancel) {}
+        .alert(L("永久删除全部 \(store.board.trash.count) 个任务？"), isPresented: $confirmEmpty) {
+            Button(L("永久删除"), role: .destructive) { store.emptyTrash() }
+            Button(L("取消"), role: .cancel) {}
         } message: {
-            Text("清空后无法再恢复。")
+            Text(L("清空后无法再恢复。"))
         }
     }
 
@@ -69,11 +69,11 @@ struct TrashView: View {
                     Text(task.title).scaledFont(.body, weight: .medium).lineLimit(2)
                 }
                 HStack(spacing: 6) {
-                    Text(column.map { $0.icon.isEmpty ? $0.name : "\($0.icon) \($0.name)" } ?? "原状态已删除")
+                    Text(column.map { $0.icon.isEmpty ? $0.name : "\($0.icon) \($0.name)" } ?? L("原状态已删除"))
                     Text("·")
-                    Text("\(deleted.dayTimeLabel) 删除")
+                    Text(L("\(deleted.dayTimeLabel) 删除"))
                     Text("·")
-                    Text("还剩 \(daysLeft) 天")
+                    Text(L("还剩 \(daysLeft) 天"))
                 }
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
@@ -82,14 +82,14 @@ struct TrashView: View {
             Button {
                 withAnimation(.snappy) { store.restore(task.id) }
             } label: {
-                Label("恢复", systemImage: "arrow.uturn.backward")
+                Label(L("恢复"), systemImage: "arrow.uturn.backward")
             }
             Button(role: .destructive) {
                 withAnimation(.snappy) { store.deleteForever(task.id) }
             } label: {
                 Image(systemName: "xmark.bin")
             }
-            .help("永久删除")
+            .help(L("永久删除"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)

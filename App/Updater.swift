@@ -29,7 +29,7 @@ enum Updater {
 
     static func check(userInitiated: Bool) async {
         guard let repo, let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else {
-            if userInitiated { alert("还没有设置更新地址", "这个版本不知道去哪里检查更新。") }
+            if userInitiated { alert(L("还没有设置更新地址"), L("这个版本不知道去哪里检查更新。")) }
             return
         }
         var request = URLRequest(url: url)
@@ -38,7 +38,7 @@ enum Updater {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             if (response as? HTTPURLResponse)?.statusCode == 404 {
-                if userInitiated { alert("已经是最新版本", "当前版本 \(currentVersion)，还没有发布过更新。") }
+                if userInitiated { alert(L("已经是最新版本"), L("当前版本 \(currentVersion)，还没有发布过更新。")) }
                 return
             }
             let release = try JSONDecoder().decode(Release.self, from: data)
@@ -46,19 +46,19 @@ enum Updater {
             if isNewer(latest, than: currentVersion) {
                 let notes = (release.body ?? "").prefix(600)
                 let a = NSAlert()
-                a.messageText = "有新版本 \(latest)（当前 \(currentVersion)）"
-                a.informativeText = notes.isEmpty ? "到下载页面获取新版本。" : String(notes)
-                a.addButton(withTitle: "去下载")
-                a.addButton(withTitle: "以后再说")
+                a.messageText = L("有新版本 \(latest)（当前 \(currentVersion)）")
+                a.informativeText = notes.isEmpty ? L("到下载页面获取新版本。") : String(notes)
+                a.addButton(withTitle: L("去下载"))
+                a.addButton(withTitle: L("以后再说"))
                 NSApp.activate(ignoringOtherApps: true)
                 if a.runModal() == .alertFirstButtonReturn, let page = URL(string: release.html_url) {
                     NSWorkspace.shared.open(page)
                 }
             } else if userInitiated {
-                alert("已经是最新版本", "当前版本 \(currentVersion)。")
+                alert(L("已经是最新版本"), L("当前版本 \(currentVersion)。"))
             }
         } catch {
-            if userInitiated { alert("检查更新失败", "请检查网络后再试。\n\(error.localizedDescription)") }
+            if userInitiated { alert(L("检查更新失败"), L("请检查网络后再试。\n\(error.localizedDescription)")) }
         }
     }
 

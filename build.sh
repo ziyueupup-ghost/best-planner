@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 MODE="${1:-install}"
 APP_ID="com.bestplanner.app"
 WIDGET_ID="$APP_ID.widget"
@@ -51,6 +51,13 @@ compile "$APPEX/Contents/MacOS/PlannerWidget" \
 echo "▸ App Intents metadata (lets the widget's checkboxes work)"
 python3 Resources/make_intents_metadata.py "$APPEX"
 
+# Empty language folders tell macOS the app speaks Chinese and English, so its own menus
+# (Edit, Window…) follow the language chosen in the app. App text comes from L().
+for lang in zh-Hans en; do
+  mkdir -p "$APP/Contents/Resources/$lang.lproj"
+  printf '/* App text is translated in Shared/English.swift */\n' > "$APP/Contents/Resources/$lang.lproj/Localizable.strings"
+done
+
 echo "▸ Icon"
 swift Resources/make_icon.swift "$BUILD/AppIcon.iconset"
 iconutil -c icns "$BUILD/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
@@ -68,6 +75,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
+  <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -122,7 +130,7 @@ if [ "$MODE" = "release" ]; then
   mkdir -p dist
   ZIP="dist/BestPlanner-$VERSION.zip"
   rm -f "$ZIP"
-  ditto -c -k --keepParent "$APP" "$ZIP"
+  ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
   $LSREGISTER -u "$APP" 2>/dev/null || true
   rm -rf "$BUILD"
   echo "✓ Release: $ZIP ($(lipo -archs "$APP/Contents/MacOS/Planner" 2>/dev/null || echo "${ARCHS[*]}"))"

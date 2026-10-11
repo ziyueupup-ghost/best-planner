@@ -7,7 +7,7 @@ import SwiftUI
 enum FontScale {
     static let storageKey = "fontScale"
     static let presets: [(value: Double, title: String)] = [
-        (0.85, "特小"), (0.92, "小"), (1.0, "标准"), (1.15, "大"), (1.3, "特大"), (1.45, "超大"), (1.6, "巨大"),
+        (0.85, L("特小")), (0.92, L("小")), (1.0, L("标准")), (1.15, L("大")), (1.3, L("特大")), (1.45, L("超大")), (1.6, L("巨大")),
     ]
     static let range: ClosedRange<Double> = 0.8...1.8
     static let step = 0.1

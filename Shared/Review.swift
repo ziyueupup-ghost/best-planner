@@ -77,16 +77,15 @@ extension Board {
                         days[day(e.date), default: DayActivity()].completed.append((task, e.date))
                         completions.append((task, e.date))
                     }
-                case .subtask where e.text.hasPrefix("完成子任务"):
-                    let title = e.text.components(separatedBy: "「").dropFirst().joined(separator: "「")
-                        .components(separatedBy: "」").first ?? e.text
+                case .subtask where e.text.hasPrefix("完成子任务") || e.text.hasPrefix("Completed subtask"):
+                    let title = Board.quoted(e.text) ?? e.text
                     days[day(e.date), default: DayActivity()].subtasks.append((task, title, e.date))
                     subtaskEvents.append(e.date)
-                case .created where e.text.hasPrefix("创建于") || e.text.hasPrefix("复制自") || e.text.hasPrefix("重复任务"):
+                case .created where ["创建于", "复制自", "重复任务", "Created in", "Copied from", "Created by repeating"].contains(where: e.text.hasPrefix):
                     if !(days[day(e.date)]?.created.contains { $0.id == task.id } ?? false) {
                         days[day(e.date), default: DayActivity()].created.append(task)
                     }
-                case .note where !e.text.hasPrefix("🍅") && !e.text.hasPrefix("添加附件") && !e.text.hasPrefix("移除附件"):
+                case .note where !["🍅", "添加附件", "移除附件", "Added attachment", "Removed attachment"].contains(where: e.text.hasPrefix):
                     days[day(e.date), default: DayActivity()].notes.append((task, e.text, e.date))
                 default:
                     break
@@ -147,35 +146,45 @@ extension Board {
             Achievement(id: id, icon: icon, title: title, detail: detail, progress: min(dates.count, target), target: target, unlockedAt: nth(dates, target))
         }
         func streak(_ id: String, _ icon: String, _ title: String, _ n: Int) -> Achievement {
-            Achievement(id: id, icon: icon, title: title, detail: "连续 \(n) 天都有完成", progress: min(longest, n), target: n, unlockedAt: streakReached[n])
+            Achievement(id: id, icon: icon, title: title, detail: L("连续 \(n) 天都有完成"), progress: min(longest, n), target: n, unlockedAt: streakReached[n])
         }
         func focus(_ id: String, _ icon: String, _ title: String, _ hours: Int) -> Achievement {
-            Achievement(id: id, icon: icon, title: title, detail: "累计专注 \(hours) 小时", progress: min(totalFocus / 60, hours), target: hours, unlockedAt: focusReached(hours * 60))
+            Achievement(id: id, icon: icon, title: title, detail: L("累计专注 \(hours) 小时"), progress: min(totalFocus / 60, hours), target: hours, unlockedAt: focusReached(hours * 60))
         }
         let achievements: [Achievement] = [
-            count("done1", "🌱", "第一步", "完成第 1 个任务", completionDates, 1),
-            count("done10", "✋", "十全十美", "完成 10 个任务", completionDates, 10),
-            count("done50", "🏅", "半百", "完成 50 个任务", completionDates, 50),
-            count("done100", "🏆", "百战百胜", "完成 100 个任务", completionDates, 100),
-            count("done500", "👑", "五百强", "完成 500 个任务", completionDates, 500),
-            count("sub50", "☑️", "拆解大师", "完成 50 个子任务", subtaskDates, 50),
-            count("sub300", "🧩", "细节控", "完成 300 个子任务", subtaskDates, 300),
-            streak("streak3", "🔥", "三天连胜", 3),
-            streak("streak7", "⚡️", "一周不断", 7),
-            streak("streak30", "🌋", "月度坚持", 30),
-            Achievement(id: "focus1", icon: "🍅", title: "第一个番茄", detail: "完成一次专注", progress: min(sessions.count, 1), target: 1, unlockedAt: sessionsSorted.first?.start),
-            focus("focus10", "⏳", "专注 10 小时", 10),
-            focus("focus100", "🧘", "专注 100 小时", 100),
-            Achievement(id: "busy10", icon: "🚀", title: "高产的一天", detail: "一天完成 10 个任务",
+            count("done1", "🌱", L("第一步"), L("完成第 1 个任务"), completionDates, 1),
+            count("done10", "✋", L("十全十美"), L("完成 10 个任务"), completionDates, 10),
+            count("done50", "🏅", L("半百"), L("完成 50 个任务"), completionDates, 50),
+            count("done100", "🏆", L("百战百胜"), L("完成 100 个任务"), completionDates, 100),
+            count("done500", "👑", L("五百强"), L("完成 500 个任务"), completionDates, 500),
+            count("sub50", "☑️", L("拆解大师"), L("完成 50 个子任务"), subtaskDates, 50),
+            count("sub300", "🧩", L("细节控"), L("完成 300 个子任务"), subtaskDates, 300),
+            streak("streak3", "🔥", L("三天连胜"), 3),
+            streak("streak7", "⚡️", L("一周不断"), 7),
+            streak("streak30", "🌋", L("月度坚持"), 30),
+            Achievement(id: "focus1", icon: "🍅", title: L("第一个番茄"), detail: L("完成一次专注"), progress: min(sessions.count, 1), target: 1, unlockedAt: sessionsSorted.first?.start),
+            focus("focus10", "⏳", L("专注 10 小时"), 10),
+            focus("focus100", "🧘", L("专注 100 小时"), 100),
+            Achievement(id: "busy10", icon: "🚀", title: L("高产的一天"), detail: L("一天完成 10 个任务"),
                         progress: min(busiest?.value.completed.count ?? 0, 10), target: 10, unlockedAt: tenDay),
-            count("notes7", "📝", "记录者", "写 7 天的今日总结", notedDays, 7),
-            Achievement(id: "early", icon: "🌅", title: "早起鸟", detail: "早上 8 点前完成一个任务", progress: early == nil ? 0 : 1, target: 1, unlockedAt: early),
-            Achievement(id: "late", icon: "🦉", title: "夜猫子", detail: "晚上 11 点后完成一个任务", progress: late == nil ? 0 : 1, target: 1, unlockedAt: late),
-            count("ontime20", "🎯", "准时达人", "在截止日前完成 20 个任务", onTime, 20),
+            count("notes7", "📝", L("记录者"), L("写 7 天的今日总结"), notedDays, 7),
+            Achievement(id: "early", icon: "🌅", title: L("早起鸟"), detail: L("早上 8 点前完成一个任务"), progress: early == nil ? 0 : 1, target: 1, unlockedAt: early),
+            Achievement(id: "late", icon: "🦉", title: L("夜猫子"), detail: L("晚上 11 点后完成一个任务"), progress: late == nil ? 0 : 1, target: 1, unlockedAt: late),
+            count("ontime20", "🎯", L("准时达人"), L("在截止日前完成 20 个任务"), onTime, 20),
         ]
 
         return ReviewData(days: days, achievements: achievements, currentStreak: current, longestStreak: longest,
                           totalCompleted: completionDates.count)
+    }
+
+    /// The text inside the first 「…」 or “…” (history entries quote names that way).
+    static func quoted(_ text: String) -> String? {
+        for (open, close) in [("「", "」"), ("“", "”")] {
+            if let a = text.range(of: open), let b = text.range(of: close, range: a.upperBound..<text.endIndex) {
+                return String(text[a.upperBound..<b.lowerBound])
+            }
+        }
+        return nil
     }
 
     // MARK: Daily notes ("yyyy-MM-dd" → text)

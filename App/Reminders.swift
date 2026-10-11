@@ -33,10 +33,10 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
                 switch d.kind {
                 case .reminder:
                     fire = d.date
-                    content.title = "⏰ 提醒"
+                    content.title = L("⏰ 提醒")
                 case .deadline:
                     fire = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: d.date) ?? d.date
-                    content.title = "📌 今天截止"
+                    content.title = L("📌 今天截止")
                 default:
                     continue
                 }

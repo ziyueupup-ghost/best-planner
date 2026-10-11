@@ -11,25 +11,25 @@ enum TagShape: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .capsule: "胶囊"
-        case .rounded: "圆角"
-        case .square: "方角"
-        case .tab: "文件夹"
-        case .leaf: "叶子"
-        case .cutCorner: "切角"
-        case .flag: "吊牌"
-        case .arrow: "箭头"
-        case .chevron: "流程"
-        case .ribbon: "缎带"
-        case .slant: "斜角"
-        case .hexagon: "六边形"
-        case .ticket: "票券"
-        case .folded: "折角"
-        case .bubble: "气泡"
-        case .scallop: "花边"
-        case .bracket: "括号"
-        case .underline: "下划线"
-        case .dot: "圆点"
+        case .capsule: L("胶囊")
+        case .rounded: L("圆角")
+        case .square: L("方角")
+        case .tab: L("文件夹")
+        case .leaf: L("叶子")
+        case .cutCorner: L("切角")
+        case .flag: L("吊牌")
+        case .arrow: L("箭头")
+        case .chevron: L("流程")
+        case .ribbon: L("缎带")
+        case .slant: L("斜角")
+        case .hexagon: L("六边形")
+        case .ticket: L("票券")
+        case .folded: L("折角")
+        case .bubble: L("气泡")
+        case .scallop: L("花边")
+        case .bracket: L("括号")
+        case .underline: L("下划线")
+        case .dot: L("圆点")
         }
     }
 
@@ -85,14 +85,14 @@ enum TagStyle: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .soft: "浅色"
-        case .solid: "实心"
-        case .outline: "描边"
-        case .duotone: "双色"
-        case .gradient: "渐变"
-        case .neon: "霓虹"
-        case .shadow: "投影"
-        case .plain: "纯文字"
+        case .soft: L("浅色")
+        case .solid: L("实心")
+        case .outline: L("描边")
+        case .duotone: L("双色")
+        case .gradient: L("渐变")
+        case .neon: L("霓虹")
+        case .shadow: L("投影")
+        case .plain: L("纯文字")
         }
     }
 
@@ -109,20 +109,20 @@ enum TagBorder: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: "自动"
-        case .none: "无"
-        case .solid: "实线"
-        case .dashed: "虚线"
-        case .dotted: "点线"
-        case .double: "双线"
-        case .dashDot: "点划线"
+        case .auto: L("自动")
+        case .none: L("无")
+        case .solid: L("实线")
+        case .dashed: L("虚线")
+        case .dotted: L("点线")
+        case .double: L("双线")
+        case .dashDot: L("点划线")
         }
     }
 }
 
 enum TagBorderWidth {
     static let options: [(value: Double, title: String)] = [
-        (0.5, "极细"), (1, "细"), (1.5, "中"), (2, "粗"), (3, "特粗"),
+        (0.5, L("极细")), (1, L("细")), (1.5, L("中")), (2, L("粗")), (3, L("特粗")),
     ]
 }
 
@@ -253,24 +253,24 @@ struct TagColorPreset: Identifiable {
     }
 
     static let all: [TagColorPreset] = [
-        TagColorPreset(name: "经典蓝", color: "#3B82F6"),
-        TagColorPreset(name: "樱花粉", color: "#EC6AA8", text: "#B83280", fill: "#FDE2EF"),
-        TagColorPreset(name: "薄荷绿", color: "#2BB673", text: "#1D7A4D", fill: "#DFF7EA"),
-        TagColorPreset(name: "日落橙", color: "#F97316", text: "#C2410C", fill: "#FFEDD5"),
-        TagColorPreset(name: "柠檬黄", color: "#EAB308", text: "#854D0E", fill: "#FEF9C3"),
-        TagColorPreset(name: "葡萄紫", color: "#8B5CF6", text: "#6D28D9", fill: "#EDE9FE"),
-        TagColorPreset(name: "珊瑚红", color: "#EF4444", text: "#B91C1C", fill: "#FEE2E2"),
-        TagColorPreset(name: "湖水青", color: "#06B6D4", text: "#0E7490", fill: "#CFFAFE"),
-        TagColorPreset(name: "薰衣草", color: "#A78BFA", text: "#7C3AED", fill: "#F5F3FF", border: "#DDD6FE"),
-        TagColorPreset(name: "森林", color: "#166534", text: "#166534", fill: "#DCFCE7", border: "#86EFAC"),
-        TagColorPreset(name: "复古", color: "#92400E", text: "#78350F", fill: "#FEF3C7", border: "#B45309"),
-        TagColorPreset(name: "糖果", color: "#F472B6", text: "#DB2777", fill: "#FEF3C7", border: "#F9A8D4"),
-        TagColorPreset(name: "玫瑰金", color: "#B76E79", text: "#8C4A55", fill: "#F8E1E4"),
-        TagColorPreset(name: "金色", color: "#D4A017", text: "#8A6D00", fill: "#FFF8E1", border: "#D4A017"),
-        TagColorPreset(name: "石墨灰", color: "#6B7280", text: "#374151", fill: "#F3F4F6"),
-        TagColorPreset(name: "象牙白", color: "#A8A29E", text: "#44403C", fill: "#FAFAF9", border: "#D6D3D1"),
-        TagColorPreset(name: "午夜蓝", color: "#1E3A8A", text: "#FDE68A", fill: "#1E3A8A"),
-        TagColorPreset(name: "暗夜黑", color: "#111827", text: "#F9FAFB", fill: "#111827", border: "#4B5563"),
+        TagColorPreset(name: L("经典蓝"), color: "#3B82F6"),
+        TagColorPreset(name: L("樱花粉"), color: "#EC6AA8", text: "#B83280", fill: "#FDE2EF"),
+        TagColorPreset(name: L("薄荷绿"), color: "#2BB673", text: "#1D7A4D", fill: "#DFF7EA"),
+        TagColorPreset(name: L("日落橙"), color: "#F97316", text: "#C2410C", fill: "#FFEDD5"),
+        TagColorPreset(name: L("柠檬黄"), color: "#EAB308", text: "#854D0E", fill: "#FEF9C3"),
+        TagColorPreset(name: L("葡萄紫"), color: "#8B5CF6", text: "#6D28D9", fill: "#EDE9FE"),
+        TagColorPreset(name: L("珊瑚红"), color: "#EF4444", text: "#B91C1C", fill: "#FEE2E2"),
+        TagColorPreset(name: L("湖水青"), color: "#06B6D4", text: "#0E7490", fill: "#CFFAFE"),
+        TagColorPreset(name: L("薰衣草"), color: "#A78BFA", text: "#7C3AED", fill: "#F5F3FF", border: "#DDD6FE"),
+        TagColorPreset(name: L("森林"), color: "#166534", text: "#166534", fill: "#DCFCE7", border: "#86EFAC"),
+        TagColorPreset(name: L("复古"), color: "#92400E", text: "#78350F", fill: "#FEF3C7", border: "#B45309"),
+        TagColorPreset(name: L("糖果"), color: "#F472B6", text: "#DB2777", fill: "#FEF3C7", border: "#F9A8D4"),
+        TagColorPreset(name: L("玫瑰金"), color: "#B76E79", text: "#8C4A55", fill: "#F8E1E4"),
+        TagColorPreset(name: L("金色"), color: "#D4A017", text: "#8A6D00", fill: "#FFF8E1", border: "#D4A017"),
+        TagColorPreset(name: L("石墨灰"), color: "#6B7280", text: "#374151", fill: "#F3F4F6"),
+        TagColorPreset(name: L("象牙白"), color: "#A8A29E", text: "#44403C", fill: "#FAFAF9", border: "#D6D3D1"),
+        TagColorPreset(name: L("午夜蓝"), color: "#1E3A8A", text: "#FDE68A", fill: "#1E3A8A"),
+        TagColorPreset(name: L("暗夜黑"), color: "#111827", text: "#F9FAFB", fill: "#111827", border: "#4B5563"),
     ]
 }
 
@@ -300,20 +300,20 @@ struct TagLook: Identifiable {
     }
 
     static let all: [TagLook] = [
-        TagLook(name: "便利贴", shape: .folded, style: .soft, color: "#EAB308", text: "#713F12", fill: "#FEF08A"),
-        TagLook(name: "霓虹灯", shape: .capsule, style: .neon, borderWidth: 1.5, color: "#22D3EE"),
-        TagLook(name: "印章", shape: .scallop, style: .outline, border: .double, color: "#DC2626"),
-        TagLook(name: "极简", shape: .underline, style: .plain, color: "#374151"),
-        TagLook(name: "徽章", shape: .hexagon, style: .gradient, color: "#9B6CF0"),
-        TagLook(name: "票根", shape: .ticket, style: .duotone, border: .dashed, color: "#F97316"),
-        TagLook(name: "路牌", shape: .arrow, style: .solid, color: "#2563EB"),
-        TagLook(name: "嫩芽", shape: .leaf, style: .soft, color: "#16A34A"),
-        TagLook(name: "对话", shape: .bubble, style: .soft, color: "#EC4899"),
-        TagLook(name: "书名号", shape: .bracket, style: .plain, color: "#8B5CF6"),
-        TagLook(name: "金属", shape: .cutCorner, style: .gradient, border: .solid, color: "#6B7280", borderColor: "#D1D5DB"),
-        TagLook(name: "文件夹", shape: .tab, style: .shadow, color: "#0EA5E9"),
-        TagLook(name: "流程", shape: .chevron, style: .solid, color: "#14B8A6"),
-        TagLook(name: "点点", shape: .rounded, style: .outline, border: .dotted, borderWidth: 1.5, color: "#F43F5E"),
+        TagLook(name: L("便利贴"), shape: .folded, style: .soft, color: "#EAB308", text: "#713F12", fill: "#FEF08A"),
+        TagLook(name: L("霓虹灯"), shape: .capsule, style: .neon, borderWidth: 1.5, color: "#22D3EE"),
+        TagLook(name: L("印章"), shape: .scallop, style: .outline, border: .double, color: "#DC2626"),
+        TagLook(name: L("极简"), shape: .underline, style: .plain, color: "#374151"),
+        TagLook(name: L("徽章"), shape: .hexagon, style: .gradient, color: "#9B6CF0"),
+        TagLook(name: L("票根"), shape: .ticket, style: .duotone, border: .dashed, color: "#F97316"),
+        TagLook(name: L("路牌"), shape: .arrow, style: .solid, color: "#2563EB"),
+        TagLook(name: L("嫩芽"), shape: .leaf, style: .soft, color: "#16A34A"),
+        TagLook(name: L("对话"), shape: .bubble, style: .soft, color: "#EC4899"),
+        TagLook(name: L("书名号"), shape: .bracket, style: .plain, color: "#8B5CF6"),
+        TagLook(name: L("金属"), shape: .cutCorner, style: .gradient, border: .solid, color: "#6B7280", borderColor: "#D1D5DB"),
+        TagLook(name: L("文件夹"), shape: .tab, style: .shadow, color: "#0EA5E9"),
+        TagLook(name: L("流程"), shape: .chevron, style: .solid, color: "#14B8A6"),
+        TagLook(name: L("点点"), shape: .rounded, style: .outline, border: .dotted, borderWidth: 1.5, color: "#F43F5E"),
     ]
 }
 

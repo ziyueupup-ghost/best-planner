@@ -37,19 +37,19 @@ extension Board {
             .sorted { $0.date != $1.date ? $0.date < $1.date : priorityRank($0.task) < priorityRank($1.task) }
         var sections: [AgendaSection] = []
         let overdue = dated.filter { $0.date < today }.map(\.task)
-        if !overdue.isEmpty { sections.append(AgendaSection(id: "overdue", title: "已过期", tasks: overdue, isOverdue: true)) }
+        if !overdue.isEmpty { sections.append(AgendaSection(id: "overdue", title: L("已过期"), tasks: overdue, isOverdue: true)) }
         for offset in 0...days {
             let start = cal.date(byAdding: .day, value: offset, to: today)!
             let end = cal.date(byAdding: .day, value: 1, to: start)!
             let items = dated.filter { $0.date >= start && $0.date < end }.map(\.task)
-            let name = offset == 0 ? "今天" : offset == 1 ? "明天" : offset == 2 ? "后天" : ""
+            let name = offset == 0 ? L("今天") : offset == 1 ? L("明天") : offset == 2 ? L("后天") : ""
             let label = start.formatted(.dateTime.month().day().weekday())
             sections.append(AgendaSection(id: "day-\(offset)", title: name.isEmpty ? label : "\(name) · \(label)", tasks: items))
         }
         if includeLater {
             let limit = cal.date(byAdding: .day, value: days + 1, to: today)!
             let later = dated.filter { $0.date >= limit }.map(\.task)
-            if !later.isEmpty { sections.append(AgendaSection(id: "later", title: "以后", tasks: later)) }
+            if !later.isEmpty { sections.append(AgendaSection(id: "later", title: L("以后"), tasks: later)) }
         }
         return sections
     }
