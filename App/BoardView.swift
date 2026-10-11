@@ -30,6 +30,9 @@ struct BoardView: View {
     @State private var showTrash = false
     @State private var showStats = false
     @State private var confirmICloud = false
+    /// Achievements already announced (comma-separated ids).
+    @AppStorage("seenAchievements") private var seenAchievements = ""
+    @State private var newAchievement: Achievement?
     @State private var iCloudError: String?
     @StateObject private var selection = TaskSelection()
     @Environment(\.undoManager) private var undoManager
@@ -56,9 +59,16 @@ struct BoardView: View {
     }
 
     var body: some View {
+        withEvents(withSheets(decorated))
+    }
+
+    /// Board / agenda / review content with its overlays and the multi-select alert.
+    private var mainArea: some View {
         Group {
             if viewMode == "agenda" {
                 AgendaView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
+            } else if viewMode == "review" {
+                ReviewView(onEdit: { editing = $0 })
             } else {
                 boardColumns
             }
@@ -81,6 +91,9 @@ struct BoardView: View {
             }
         }
         .animation(.snappy, value: liveSelection.isEmpty)
+        .overlay(alignment: .top) { achievementBanner }
+        .onChange(of: store.board.tasks) { _, _ in announceAchievements() }
+        .onAppear { announceAchievements() }
         .overlay(alignment: .bottomLeading) {
             FocusBar()
                 .padding(14)
@@ -96,6 +109,11 @@ struct BoardView: View {
         } message: {
             Text("30 天内可以在「最近删除」里恢复。")
         }
+    }
+
+    /// Window background, search field and toolbar.
+    private var decorated: some View {
+        mainArea
         .background(Color(nsColor: .windowBackgroundColor))
         .searchable(text: $search, placement: .toolbar, prompt: "搜索任务")
         .toolbar {
@@ -103,9 +121,10 @@ struct BoardView: View {
                 Picker("视图", selection: $viewMode) {
                     Label("看板", systemImage: "rectangle.split.3x1").tag("board")
                     Label("日程", systemImage: "calendar.day.timeline.left").tag("agenda")
+                    Label("回顾", systemImage: "calendar").tag("review")
                 }
                 .pickerStyle(.segmented)
-                .help("看板：按状态分列；日程：按日期看所有没完成的任务")
+                .help("看板：按状态分列；日程：按日期看没完成的任务；回顾：日历看每天完成了什么，还有成就")
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Toggle(isOn: Binding(get: { selection.mode }, set: { on in
@@ -147,6 +166,10 @@ struct BoardView: View {
                 .help("新建任务 (⌘N)")
             }
         }
+    }
+
+    private func withSheets(_ content: some View) -> some View {
+        content
         .sheet(item: $creatingIn) { ref in
             TaskEditor(task: newTask(in: ref.id), isNew: true)
                 .environmentObject(store)
@@ -174,6 +197,10 @@ struct BoardView: View {
                 .environmentObject(store)
                 .appFontSize()
         }
+    }
+
+    private func withEvents(_ content: some View) -> some View {
+        content
         .onReceive(NotificationCenter.default.publisher(for: .newTaskRequested)) { _ in
             creatingIn = store.columns.first.map { ColumnRef(id: $0.id) }
         }
@@ -305,6 +332,43 @@ struct BoardView: View {
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(Color.primary.opacity(0.12)))
         .shadow(color: .black.opacity(0.2), radius: 10, y: 3)
+    }
+
+    @ViewBuilder
+    private var achievementBanner: some View {
+            if let a = newAchievement {
+                HStack(spacing: 10) {
+                    Text(a.icon).font(.system(size: 30 * fontScale))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("解锁成就：\(a.title)").scaledFont(.headline)
+                        Text(a.detail).scaledFont(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.yellow.opacity(0.6), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.2), radius: 10, y: 3)
+                .padding(.top, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .onTapGesture { viewMode = "review"; newAchievement = nil }
+            }
+    }
+
+    /// Shows a banner for achievements unlocked since last time. The first run only
+    /// records what's already unlocked, without announcing it.
+    private func announceAchievements() {
+        let unlocked = store.board.review().achievements.filter(\.isUnlocked)
+        let ids = Set(unlocked.map(\.id))
+        let firstRun = seenAchievements.isEmpty
+        let seen = Set(seenAchievements.split(separator: ",").map(String.init))
+        let fresh = unlocked.filter { !seen.contains($0.id) }
+        seenAchievements = (seen.union(ids).isEmpty ? ["-"] : Array(seen.union(ids))).sorted().joined(separator: ",")
+        guard !firstRun, let first = fresh.first else { return }
+        withAnimation(.snappy) { newAchievement = first }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            withAnimation(.snappy) { if newAchievement?.id == first.id { newAchievement = nil } }
+        }
     }
 
     private func newTask(in columnID: String) -> PlannerTask {

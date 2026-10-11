@@ -402,6 +402,16 @@ final class BoardStore: ObservableObject {
         flush()
     }
 
+    // MARK: Daily notes
+
+    func setDayNote(_ text: String, for day: Date) {
+        let key = Board.dayKey(day)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard board.dayNotes[key] ?? "" != text else { return }
+        if trimmed.isEmpty { board.dayNotes[key] = nil } else { board.dayNotes[key] = text }
+        persist()
+    }
+
     // MARK: Quick add
 
     /// Adds a task from a parsed quick-add line (creating new tags, applying linked packs).

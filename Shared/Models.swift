@@ -330,6 +330,8 @@ struct Board: Codable, Equatable {
     /// Deleted tasks, kept for 30 days so they can be restored.
     var trash: [PlannerTask] = []
     var subtaskPacks: [SubtaskPack] = Board.defaultPacks
+    /// 今日总结 written in 回顾, keyed "yyyy-MM-dd".
+    var dayNotes: [String: String] = [:]
 
     init(columns: [BoardColumn], tags: [Tag], tasks: [PlannerTask]) {
         self.columns = columns
@@ -349,6 +351,7 @@ struct Board: Codable, Equatable {
         defaultPriorityID = try c.decodeIfPresent(String.self, forKey: .defaultPriorityID) ?? "normal"
         trash = try c.decodeIfPresent([PlannerTask].self, forKey: .trash) ?? []
         subtaskPacks = try c.decodeIfPresent([SubtaskPack].self, forKey: .subtaskPacks) ?? Board.defaultPacks
+        dayNotes = try c.decodeIfPresent([String: String].self, forKey: .dayNotes) ?? [:]
         if columns.isEmpty { columns = Board.defaultColumns }
     }
 
