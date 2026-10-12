@@ -7,6 +7,8 @@ struct TaskEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.fontScale) private var fontScale
     @State private var task: PlannerTask
+    /// The stored version this editor last synced with (for merging, see Shared/Merge.swift).
+    @State private var base: PlannerTask
     @State private var newSubtask = ""
     @State private var newTag = ""
     @State private var newNote = ""
@@ -18,6 +20,7 @@ struct TaskEditor: View {
 
     init(task: PlannerTask, isNew: Bool) {
         _task = State(initialValue: task)
+        _base = State(initialValue: task)
         _exists = State(initialValue: !isNew)
         self.isNew = isNew
     }
@@ -66,6 +69,7 @@ struct TaskEditor: View {
         .frame(width: FontScale.sheetSize(width: 520, height: 640, scale: fontScale).width,
                height: FontScale.sheetSize(width: 520, height: 640, scale: fontScale).height)
         .onChange(of: task) { _, _ in autosave() }
+        .onReceive(store.$board) { _ in syncFromStore() }
         .onDisappear {
             addSubtask()
             autosave()
@@ -401,10 +405,20 @@ struct TaskEditor: View {
         t.title = t.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !deleted, !t.title.isEmpty else { return }
         if exists {
-            store.update(t)
+            store.update(t, base: base)
         } else if store.tasks.contains(where: { $0.id == t.id }) == false {
             store.add(t)
             exists = true
         }
+        if let stored = store.task(t.id) { base = stored }
+    }
+
+    /// The task changed elsewhere while this editor is open (widget, agenda, another Mac):
+    /// bring those changes in, keeping whatever was edited here.
+    private func syncFromStore() {
+        guard exists, !deleted, let stored = store.task(task.id), !stored.sameEditableContent(as: base) else { return }
+        let merged = PlannerTask.merge(base: base, mine: task, theirs: stored)
+        base = stored
+        if !merged.sameEditableContent(as: task) { task = merged }
     }
 }

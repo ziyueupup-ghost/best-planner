@@ -22,9 +22,15 @@ final class BoardStore: ObservableObject {
     /// means someone else (the desktop widget) changed it.
     private var knownFileDate: Date?
     private var watchTimer: Timer?
+    /// The board as last read from / written to the file: the "base" for merging when
+    /// the file changed elsewhere (the widget ticking something) before we save.
+    private var syncedBoard: Board
+    private var folderWatcher: DispatchSourceFileSystemObject?
 
     init() {
-        board = PlannerStorage.load()
+        let loaded = PlannerStorage.load()
+        board = loaded
+        syncedBoard = loaded
         // Tasks completed before completion dates existed: use their last update.
         for i in board.tasks.indices where board.isDone(board.tasks[i]) && board.tasks[i].completedAt == nil {
             board.tasks[i].completedAt = board.tasks[i].updatedAt
@@ -40,6 +46,7 @@ final class BoardStore: ObservableObject {
         }
         // Write once so a migrated older board is persisted in the current format.
         PlannerStorage.save(board)
+        syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
         ReminderScheduler.shared.reschedule(board)
         NotificationCenter.default.addObserver(
@@ -55,6 +62,22 @@ final class BoardStore: ObservableObject {
         watchTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadIfChangedElsewhere() }
         }
+        watchDataFolder()
+    }
+
+    /// Gets told right away when the data folder changes (the widget saving), instead of
+    /// relying only on the timer, which macOS slows down while the app is in the background.
+    private func watchDataFolder() {
+        folderWatcher?.cancel()
+        let fd = open(PlannerStorage.directory.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
+        source.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.reloadIfChangedElsewhere() }
+        }
+        source.setCancelHandler { close(fd) }
+        source.resume()
+        folderWatcher = source
     }
 
     /// Picks up changes made by the desktop widget (ticking tasks/subtasks there).
@@ -64,6 +87,7 @@ final class BoardStore: ObservableObject {
         isRestoring = true   // not an undoable edit
         board = PlannerStorage.load()
         isRestoring = false
+        syncedBoard = board
         ReminderScheduler.shared.reschedule(board)
     }
 
@@ -108,17 +132,16 @@ final class BoardStore: ObservableObject {
         persist()
     }
 
-    /// Saves edits from the task editor. History and completion date are owned by the
-    /// store (the editor's copy may be stale), so they are kept from the stored task.
-    func update(_ task: PlannerTask) {
+    /// Saves edits from the task editor. Only what the editor changed since `base` (the
+    /// version it last synced with) is applied, so changes made elsewhere meanwhile — a
+    /// subtask ticked on the widget, the task completed from the agenda — are kept.
+    /// History, completion date, order and focus time stay the store's.
+    func update(_ task: PlannerTask, base: PlannerTask) {
         modify(task.id) { t in
-            let history = t.history, completedAt = t.completedAt, updatedAt = t.updatedAt, order = t.order
-            let columnChanged = t.columnID != task.columnID
-            t = task
-            t.history = history
-            t.completedAt = completedAt
-            t.updatedAt = updatedAt
-            t.order = columnChanged ? topOrder(in: task.columnID) : order
+            let merged = PlannerTask.merge(base: base, mine: task, theirs: t)
+            let columnChanged = merged.columnID != t.columnID
+            t = merged
+            if columnChanged { t.order = topOrder(in: merged.columnID) }
         }
     }
 
@@ -397,7 +420,9 @@ final class BoardStore: ObservableObject {
         isRestoring = true   // switching location isn't an undoable edit
         board = PlannerStorage.load()
         isRestoring = false
+        syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
+        watchDataFolder()
         undoManager?.removeAllActions()
         flush()
     }
@@ -505,11 +530,19 @@ final class BoardStore: ObservableObject {
         }
     }
 
-    /// Writes immediately (also called when the app quits).
+    /// Writes immediately (also called when the app quits). If the file changed elsewhere
+    /// since we last read it (the widget ticked something), merge instead of overwriting.
     func flush() {
         pendingSave?.cancel()
         pendingSave = nil
+        if let date = PlannerStorage.modificationDate(), date != knownFileDate {
+            let merged = Board.merge(base: syncedBoard, mine: board, theirs: PlannerStorage.load())
+            isRestoring = true   // bringing in someone else's change isn't an undoable edit
+            board = merged
+            isRestoring = false
+        }
         PlannerStorage.save(board)
+        syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
         WidgetCenter.shared.reloadAllTimelines()
         ReminderScheduler.shared.reschedule(board)
