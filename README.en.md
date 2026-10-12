@@ -12,7 +12,7 @@ A macOS kanban planner with a desktop widget. Available in English and Chinese.
    - Open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** and confirm. After that it opens normally.
 3. Requires macOS 14 (Sonoma) or later. Works on Apple silicon and Intel Macs.
 4. Desktop widget: right-click the desktop → Edit Widgets → search for “Best Planner”.
-5. Updates: **Best Planner → Check for Updates…** (it also checks once a day).
+5. Updates: **Best Planner → Check for Updates…** (it also checks every time the app opens and tells you when there is a new version).
 
 **Language:** the app follows your system language. To switch, use the 🌐 button in the toolbar or **Best Planner → Language**, then reopen the app.
 

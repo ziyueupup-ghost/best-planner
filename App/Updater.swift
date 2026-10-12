@@ -18,14 +18,16 @@ enum Updater {
         let html_url: String
     }
 
-    /// Daily background check: only speaks up when there's an update.
-    static func checkDaily() {
-        let key = "lastUpdateCheck"
-        let last = UserDefaults.standard.object(forKey: key) as? Date ?? .distantPast
-        guard Date().timeIntervalSince(last) > 86_400 else { return }
-        UserDefaults.standard.set(Date(), forKey: key)
-        Task { await check(userInitiated: false) }
+    /// Check when the app opens: only speaks up when there's a new version the user
+    /// hasn't chosen to skip.
+    static func checkOnLaunch() {
+        Task {
+            try? await Task.sleep(for: .seconds(2))   // let the window appear first
+            await check(userInitiated: false)
+        }
     }
+
+    private static let skippedKey = "skippedUpdateVersion"
 
     static func check(userInitiated: Bool) async {
         guard let repo, let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else {
@@ -44,15 +46,23 @@ enum Updater {
             let release = try JSONDecoder().decode(Release.self, from: data)
             let latest = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
             if isNewer(latest, than: currentVersion) {
+                // Automatic checks stay quiet about a version the user chose to skip.
+                if !userInitiated, UserDefaults.standard.string(forKey: skippedKey) == latest { return }
                 let notes = (release.body ?? "").prefix(600)
                 let a = NSAlert()
                 a.messageText = L("有新版本 \(latest)（当前 \(currentVersion)）")
                 a.informativeText = notes.isEmpty ? L("到下载页面获取新版本。") : String(notes)
                 a.addButton(withTitle: L("去下载"))
                 a.addButton(withTitle: L("以后再说"))
+                a.addButton(withTitle: L("跳过这个版本"))
                 NSApp.activate(ignoringOtherApps: true)
-                if a.runModal() == .alertFirstButtonReturn, let page = URL(string: release.html_url) {
-                    NSWorkspace.shared.open(page)
+                switch a.runModal() {
+                case .alertFirstButtonReturn:
+                    if let page = URL(string: release.html_url) { NSWorkspace.shared.open(page) }
+                case .alertThirdButtonReturn:
+                    UserDefaults.standard.set(latest, forKey: skippedKey)
+                default:
+                    break
                 }
             } else if userInitiated {
                 alert(L("已经是最新版本"), L("当前版本 \(currentVersion)。"))

@@ -45,6 +45,15 @@ struct FoldGroup: Identifiable {
 extension Board {
     func groupKey(_ columnID: String, _ key: String) -> String { "\(columnID)|\(key)" }
 
+    /// A column's tasks in the order the board shows them: the sort order, and when the
+    /// column is folded into groups, group by group in the column's group order.
+    /// The widget uses this so its order always matches the app.
+    func displayOrder(in columnID: String) -> [PlannerTask] {
+        let sorted = tasks(in: columnID)
+        guard let column = column(columnID), column.foldMode != .off, column.foldMode != .all else { return sorted }
+        return foldGroups(sorted, in: column).flatMap(\.tasks)
+    }
+
     func isGroupExpanded(_ columnID: String, _ key: String) -> Bool {
         expandedGroups.contains(groupKey(columnID, key))
     }

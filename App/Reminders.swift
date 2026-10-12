@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             GlobalHotKey.shared.register()
-            Updater.checkDaily()
+            Updater.checkOnLaunch()
         }
     }
 }

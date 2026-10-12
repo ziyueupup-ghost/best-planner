@@ -359,6 +359,7 @@ enum English {
         "到下载页面获取新版本。": "Get the new version from the download page.",
         "去下载": "Download",
         "以后再说": "Not Now",
+        "跳过这个版本": "Skip This Version",
         "当前版本 {}。": "Current version {}.",
         "检查更新失败": "Couldn't check for updates",
         "请检查网络后再试。\n{}": "Check your internet connection and try again.\n{}",

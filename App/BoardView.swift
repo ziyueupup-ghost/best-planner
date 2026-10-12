@@ -1049,6 +1049,10 @@ struct ColumnResizeHandle: View {
                 hovering = inside
                 if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
             }
+            .onDisappear {
+                // Leaving the board while hovering the edge would otherwise keep the ↔ cursor.
+                if hovering { NSCursor.pop(); hovering = false }
+            }
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in

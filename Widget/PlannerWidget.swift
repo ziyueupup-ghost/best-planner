@@ -75,7 +75,8 @@ struct PlannerWidgetView: View {
     private var small: some View {
         let total = board.tasks.count
         let done = board.tasks.filter { board.isDone($0) }.count
-        let next = activeColumns.reversed().flatMap { board.tasks(in: $0.id) }
+        // Same order as the board: columns left to right, tasks top to bottom.
+        let next = activeColumns.flatMap { board.displayOrder(in: $0.id) }
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Best Planner").font(.headline)
@@ -134,7 +135,7 @@ struct PlannerWidgetView: View {
     // MARK: Pieces
 
     private func column(_ c: BoardColumn, budget: Int) -> some View {
-        let tasks = board.tasks(in: c.id)
+        let tasks = board.displayOrder(in: c.id)
         return VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 if c.icon.isEmpty {

@@ -18,6 +18,18 @@ final class FocusTimer: ObservableObject {
     private var tick: Timer?
 
     var isRunning: Bool { taskID != nil }
+
+    private init() {
+        // Quitting mid-session still records the minutes already focused.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                if FocusTimer.shared.isRunning {
+                    FocusTimer.shared.stop()
+                    BoardStore.shared.flush()
+                }
+            }
+        }
+    }
     var elapsedMinutes: Int { (totalSeconds - remaining) / 60 }
     var label: String { String(format: "%02d:%02d", remaining / 60, remaining % 60) }
 
