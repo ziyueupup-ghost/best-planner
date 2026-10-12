@@ -48,7 +48,7 @@ enum Updater {
             if isNewer(latest, than: currentVersion) {
                 // Automatic checks stay quiet about a version the user chose to skip.
                 if !userInitiated, UserDefaults.standard.string(forKey: skippedKey) == latest { return }
-                let notes = (release.body ?? "").prefix(600)
+                let notes = readableNotes(release.body ?? "").prefix(600)
                 let a = NSAlert()
                 a.messageText = L("有新版本 \(latest)（当前 \(currentVersion)）")
                 a.informativeText = notes.isEmpty ? L("到下载页面获取新版本。") : String(notes)
@@ -70,6 +70,19 @@ enum Updater {
         } catch {
             if userInitiated { alert(L("检查更新失败"), L("请检查网络后再试。\n\(error.localizedDescription)")) }
         }
+    }
+
+    /// Release notes are Markdown with a Chinese part and an English part separated by
+    /// "---". Shows the part for the app's language as plain text.
+    static func readableNotes(_ markdown: String) -> String {
+        let parts = markdown.components(separatedBy: "\n---\n")
+        var text = parts.count > 1 ? (AppLanguage.isEnglish ? parts[1] : parts[0]) : markdown
+        text = text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+        let lines = text.components(separatedBy: "\n").map { line -> String in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return t.hasPrefix("- ") ? "• " + t.dropFirst(2) : t
+        }
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Compares dotted version numbers ("1.10.0" > "1.9.2").
