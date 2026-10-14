@@ -2,11 +2,12 @@
 # Builds Best Planner.app (with its desktop widget) using only the Command Line Tools.
 #   ./build.sh           build for this Mac and install to /Applications
 #   ./build.sh release   build a universal (Apple silicon + Intel) app and zip it
-#                        into dist/ for sharing (not installed)
+#                        into dist/ for sharing (not installed), plus a .sha256
+#                        checksum; upload both to the GitHub release
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.4.2"
+VERSION="1.5.0"
 MODE="${1:-install}"
 APP_ID="com.bestplanner.app"
 WIDGET_ID="$APP_ID.widget"
@@ -131,6 +132,8 @@ if [ "$MODE" = "release" ]; then
   ZIP="dist/BestPlanner-$VERSION.zip"
   rm -f "$ZIP"
   ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
+  # Checksum for the in-app one-click update (it refuses a zip that doesn't match).
+  shasum -a 256 "$ZIP" | awk '{print $1}' > "$ZIP.sha256"
   $LSREGISTER -u "$APP" 2>/dev/null || true
   rm -rf "$BUILD"
   echo "✓ Release: $ZIP ($(lipo -archs "$APP/Contents/MacOS/Planner" 2>/dev/null || echo "${ARCHS[*]}"))"

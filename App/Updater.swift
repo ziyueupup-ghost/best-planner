@@ -12,11 +12,17 @@ enum Updater {
         (Bundle.main.object(forInfoDictionaryKey: "BPUpdateRepo") as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    private struct Release: Decodable {
+    struct Release: Decodable {
         let tag_name: String
         let name: String?
         let body: String?
         let html_url: String
+        let assets: [Asset]?
+
+        struct Asset: Decodable {
+            let name: String
+            let browser_download_url: String
+        }
     }
 
     /// Check when the app opens: only speaks up when there's a new version the user
@@ -53,13 +59,18 @@ enum Updater {
                 let a = NSAlert()
                 a.messageText = L("有新版本 \(latest)（当前 \(currentVersion)）")
                 a.informativeText = notes.isEmpty ? L("到下载页面获取新版本。") : String(notes)
-                a.addButton(withTitle: L("去下载"))
+                let oneClick = AutoUpdater.canInstall(release)
+                a.addButton(withTitle: oneClick ? L("立即更新") : L("去下载"))
                 a.addButton(withTitle: L("以后再说"))
                 a.addButton(withTitle: L("跳过这个版本"))
                 NSApp.activate(ignoringOtherApps: true)
                 switch a.runModal() {
                 case .alertFirstButtonReturn:
-                    if let page = URL(string: release.html_url) { NSWorkspace.shared.open(page) }
+                    if oneClick {
+                        AutoUpdater.install(release, version: latest)
+                    } else if let page = URL(string: release.html_url) {
+                        NSWorkspace.shared.open(page)
+                    }
                 case .alertThirdButtonReturn:
                     UserDefaults.standard.set(latest, forKey: skippedKey)
                 default:

@@ -12,7 +12,7 @@ A macOS kanban planner with a desktop widget. Available in English and Chinese.
    - Open **System Settings → Privacy & Security**, scroll down, click **Open Anyway** and confirm. After that it opens normally.
 3. Requires macOS 14 (Sonoma) or later. Works on Apple silicon and Intel Macs.
 4. Desktop widget: right-click the desktop → Edit Widgets → search for “Best Planner”.
-5. Updates: **Best Planner → Check for Updates…** (it also checks every time the app opens and tells you when there is a new version).
+5. Updates: the app checks every time it opens and shows an alert when there is a new version — click **Update Now** and it downloads, verifies, installs and reopens itself (from 1.5.0 on). You can also use **Best Planner → Check for Updates…**.
 
 **Language:** the app follows your system language. To switch, use the 🌐 button in the toolbar or **Best Planner → Language**, then reopen the app.
 
@@ -44,7 +44,7 @@ Only the Command Line Tools are needed (no Xcode): run `xcode-select --install` 
 ./build.sh
 ```
 
-builds the app and installs it to `/Applications/Best Planner.app`. To make a release, bump `VERSION` in `build.sh` and run `./build.sh release`; it writes a universal zip to `dist/`. Upload it to GitHub Releases with the tag `v<version>` and the in-app update check will find it.
+builds the app and installs it to `/Applications/Best Planner.app`. To make a release, bump `VERSION` in `build.sh` and run `./build.sh release`; it writes a universal zip and its `.sha256` checksum to `dist/`. Upload **both** to GitHub Releases with the tag `v<version>`; the in-app one-click update downloads the zip and checks it against the `.sha256` (without it, the app just opens the download page).
 
 ### Translations
 
