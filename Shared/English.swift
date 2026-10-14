@@ -300,6 +300,7 @@ enum English {
         "要做什么？": "What needs doing?",
         "备注": "Notes",
         "可选": "Optional",
+        "可选（内容多时可以往下滚动）": "Optional (scrolls when it gets long)",
         "重复": "Repeat",
         "完成后自动生成下一次，日期按周期往后推": "When completed, the next one is created with its dates moved forward",
         "左侧色条颜色": "Stripe color",

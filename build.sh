@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.4.1"
+VERSION="1.4.2"
 MODE="${1:-install}"
 APP_ID="com.bestplanner.app"
 WIDGET_ID="$APP_ID.widget"
@@ -146,6 +146,8 @@ rm -rf "/Applications/$APP_NAME.app"
 cp -R "$APP" /Applications/
 $LSREGISTER -f "/Applications/$APP_NAME.app"
 pluginkit -a "/Applications/$APP_NAME.app/Contents/PlugIns/PlannerWidget.appex" 2>/dev/null || true
+# A widget process still running the previous build would keep the old layout.
+pkill -x PlannerWidget 2>/dev/null || true
 
 # Clean up the intermediate copy so only the installed app stays registered.
 $LSREGISTER -u "$APP" 2>/dev/null || true

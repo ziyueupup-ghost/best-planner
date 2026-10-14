@@ -1,4 +1,5 @@
 import AppKit
+import WidgetKit
 
 /// Checks GitHub Releases for a newer version. The repository ("owner/name") and the
 /// current version come from Info.plist (written by build.sh).
@@ -101,5 +102,24 @@ enum Updater {
         a.informativeText = text
         NSApp.activate(ignoringOtherApps: true)
         a.runModal()
+    }
+}
+
+/// Replacing the app doesn't stop a widget process that's already running, so the
+/// desktop widget could keep showing the old version's layout. On the first launch of
+/// a new version, end the old widget process (macOS starts the new one) and reload it.
+enum WidgetRefresher {
+    @MainActor
+    static func afterUpdate() {
+        let key = "lastLaunchedVersion"
+        let current = Updater.currentVersion
+        guard UserDefaults.standard.string(forKey: key) != current else { return }
+        UserDefaults.standard.set(current, forKey: key)
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        task.arguments = ["-x", "PlannerWidget"]   // exact process name: only the widget
+        try? task.run()
+        task.waitUntilExit()
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

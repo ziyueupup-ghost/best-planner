@@ -88,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             GlobalHotKey.shared.register()
             Updater.checkOnLaunch()
+            WidgetRefresher.afterUpdate()
         }
     }
 }

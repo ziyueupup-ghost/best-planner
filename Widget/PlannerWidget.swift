@@ -163,7 +163,8 @@ struct PlannerWidgetView: View {
             out.append(.task(t))
             shownTasks += 1
             guard !board.isDone(t) else { continue }
-            for s in t.subtasks where out.count < budget {
+            // Ticked subtasks are left out to save room (the app still shows them struck through).
+            for s in t.subtasks where !s.isDone && out.count < budget {
                 out.append(.subtask(t, s))
             }
         }

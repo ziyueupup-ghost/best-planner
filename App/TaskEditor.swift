@@ -93,8 +93,24 @@ struct TaskEditor: View {
     private var basicSection: some View {
         Section {
             TextField(L("标题"), text: $task.title, prompt: Text(L("要做什么？")))
-            TextField(L("备注"), text: $task.notes, prompt: Text(L("可选")), axis: .vertical)
-                .lineLimit(2...5)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("备注"))
+                TextEditor(text: $task.notes)
+                    .scaledFont(.body)
+                    .scrollContentBackground(.hidden)
+                    .frame(height: 110 * fontScale)
+                    .padding(4)
+                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(alignment: .topLeading) {
+                        if task.notes.isEmpty {
+                            Text(L("可选（内容多时可以往下滚动）"))
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .allowsHitTesting(false)
+                        }
+                    }
+            }
             Picker(L("状态"), selection: $task.columnID) {
                 ForEach(store.columns) { c in
                     Text(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)").tag(c.id)
