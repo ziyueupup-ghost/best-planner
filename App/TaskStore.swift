@@ -35,7 +35,13 @@ final class BoardStore: ObservableObject {
         for i in board.tasks.indices where board.isDone(board.tasks[i]) && board.tasks[i].completedAt == nil {
             board.tasks[i].completedAt = board.tasks[i].updatedAt
         }
-        PlannerStorage.backup()
+        // Daily backup; plus one the first time a new version opens the data (before it
+        // writes anything), so an update can never cost more than this copy.
+        let versionKey = "lastBackedUpVersion"
+        let firstRunOfVersion = UserDefaults.standard.string(forKey: versionKey) != Updater.currentVersion
+        PlannerStorage.backup(force: firstRunOfVersion)
+        if firstRunOfVersion { PlannerStorage.backup() }
+        UserDefaults.standard.set(Updater.currentVersion, forKey: versionKey)
         // Deleted tasks are kept for 30 days.
         let cutoff = Date().addingTimeInterval(-30 * 86_400)
         board.trash.removeAll { ($0.deletedAt ?? .distantPast) < cutoff }

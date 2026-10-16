@@ -35,6 +35,9 @@ enum AutoUpdater {
             do {
                 let newApp = try await download(release, version: version, progress: progress)
                 progress.update(L("正在安装…"))
+                // Save and keep a copy of the data exactly as it was before the update.
+                BoardStore.shared.flush()
+                PlannerStorage.backup(force: true)
                 let current = Bundle.main.bundleURL
                 _ = try FileManager.default.replaceItemAt(current, withItemAt: newApp)
                 progress.update(L("安装完成，正在重新打开…"))
