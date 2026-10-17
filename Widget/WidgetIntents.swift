@@ -20,7 +20,8 @@ struct ToggleTaskIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        var board = PlannerStorage.load()
+        // If the data can't be read right now, do nothing rather than save an empty board.
+        guard var board = PlannerStorage.read() else { return .result() }
         board.toggleTaskDone(taskID, source: "桌面小组件")
         board.spawnRecurrences()
         PlannerStorage.save(board)
@@ -43,7 +44,8 @@ struct ToggleSubtaskIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        var board = PlannerStorage.load()
+        // If the data can't be read right now, do nothing rather than save an empty board.
+        guard var board = PlannerStorage.read() else { return .result() }
         board.toggleSubtask(taskID: taskID, subtaskID: subtaskID, source: "桌面小组件")
         PlannerStorage.save(board)
         return .result()

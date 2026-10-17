@@ -28,7 +28,10 @@ final class BoardStore: ObservableObject {
     private var folderWatcher: DispatchSourceFileSystemObject?
 
     init() {
-        let loaded = PlannerStorage.load()
+        let readable = PlannerStorage.read()
+        // A data file that can't be read is kept as a backup before anything is written.
+        if readable == nil, PlannerStorage.hasData { PlannerStorage.backup(force: true) }
+        let loaded = readable ?? .empty
         board = loaded
         syncedBoard = loaded
         // Tasks completed before completion dates existed: use their last update.
@@ -50,8 +53,9 @@ final class BoardStore: ObservableObject {
             let list = board.tasks(in: column.id)
             if Set(list.map(\.order)).count < list.count { renumber(list) }
         }
-        // Write once so a migrated older board is persisted in the current format.
-        PlannerStorage.save(board)
+        // Write once so a migrated older board is persisted in the current format
+        // (not when the file couldn't be read: leave it alone until there's a real edit).
+        if readable != nil || !PlannerStorage.hasData { PlannerStorage.save(board) }
         syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
         ReminderScheduler.shared.reschedule(board)
@@ -88,10 +92,11 @@ final class BoardStore: ObservableObject {
 
     /// Picks up changes made by the desktop widget (ticking tasks/subtasks there).
     func reloadIfChangedElsewhere() {
-        guard pendingSave == nil, let date = PlannerStorage.modificationDate(), date != knownFileDate else { return }
+        guard pendingSave == nil, let date = PlannerStorage.modificationDate(), date != knownFileDate,
+              let fresh = PlannerStorage.read() else { return }
         knownFileDate = date
         isRestoring = true   // not an undoable edit
-        board = PlannerStorage.load()
+        board = fresh
         isRestoring = false
         syncedBoard = board
         ReminderScheduler.shared.reschedule(board)
@@ -424,7 +429,7 @@ final class BoardStore: ObservableObject {
         try PlannerStorage.setICloud(on)
         usesICloud = PlannerStorage.usesICloud
         isRestoring = true   // switching location isn't an undoable edit
-        board = PlannerStorage.load()
+        if let moved = PlannerStorage.read() { board = moved }
         isRestoring = false
         syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
@@ -541,8 +546,8 @@ final class BoardStore: ObservableObject {
     func flush() {
         pendingSave?.cancel()
         pendingSave = nil
-        if let date = PlannerStorage.modificationDate(), date != knownFileDate {
-            let merged = Board.merge(base: syncedBoard, mine: board, theirs: PlannerStorage.load())
+        if let date = PlannerStorage.modificationDate(), date != knownFileDate, let theirs = PlannerStorage.read() {
+            let merged = Board.merge(base: syncedBoard, mine: board, theirs: theirs)
             isRestoring = true   // bringing in someone else's change isn't an undoable edit
             board = merged
             isRestoring = false

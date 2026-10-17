@@ -530,7 +530,9 @@ struct ColumnView: View {
                                 }
                             )
                             if open {
-                                ForEach(group.tasks) { card($0) }
+                                // Keyed by group too: a card moving to another group (a tag just
+                                // added) must be rebuilt, or the lazy stack keeps showing its old content.
+                                ForEach(group.tasks) { card($0).id("\(group.key)|\($0.id)") }
                             }
                         }
                     }

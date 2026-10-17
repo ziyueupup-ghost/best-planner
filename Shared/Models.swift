@@ -509,13 +509,23 @@ enum PlannerStorage {
         return try? decoder.decode(Board.self, from: data)
     }
 
-    static func load() -> Board {
+    static func load() -> Board { read() ?? .empty }
+
+    /// The saved board, or nil when there is a data file but it can't be read right now
+    /// (iCloud still downloading, damaged file…). Anything that saves afterwards must use
+    /// this, not `load()`: saving the empty fallback would overwrite the real data.
+    static func read() -> Board? {
         if usesICloud {
             ensureDownloaded(fileURL)
             if let board = decode(fileURL) { return board }
             // iCloud copy not readable (offline, still downloading…): use the local mirror.
         }
-        return decode(localFileURL) ?? .empty
+        return decode(localFileURL)
+    }
+
+    /// Whether a data file exists at all (a brand-new install has none).
+    static var hasData: Bool {
+        FileManager.default.fileExists(atPath: fileURL.path) || FileManager.default.fileExists(atPath: localFileURL.path)
     }
 
     static func modificationDate() -> Date? {
