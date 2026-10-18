@@ -28,6 +28,14 @@ struct MobileBoardView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 columnPicker
+                if let error = store.saveError {
+                    Label(L("没能保存到 iCloud，会自动重试：\(error)"), systemImage: "exclamationmark.icloud.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.white)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red)
+                }
                 if let column {
                     taskList(column)
                 }
@@ -138,7 +146,7 @@ struct MobileBoardView: View {
                                     .foregroundStyle(.secondary)
                                     .rotationEffect(.degrees(open ? 90 : 0))
                                 groupHeader(group)
-                                Text("\(group.tasks.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                                Text("\(group.tasks.count)").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
                                 Spacer()
                             }
                             .contentShape(Rectangle())
@@ -152,17 +160,19 @@ struct MobileBoardView: View {
             }
         }
         .listStyle(.insetGrouped)
+        // Folded groups sit close together instead of a full section gap apart.
+        .listSectionSpacing(10)
     }
 
     @ViewBuilder
     private func groupHeader(_ group: FoldGroup) -> some View {
         switch group.header {
         case .text(let title, let symbol, let color):
-            Label(title, systemImage: symbol).foregroundStyle(color).font(.subheadline.weight(.semibold))
+            Label(title, systemImage: symbol).foregroundStyle(color).font(.headline)
         case .tag(let tag):
-            TagChip(tag: tag, small: true)
+            TagChip(tag: tag).environment(\.fontScale, MobileStyle.tagScale)
         case .priority(let level):
-            Text(level.label).foregroundStyle(level.color).font(.subheadline.weight(.semibold))
+            Text(level.label).foregroundStyle(level.color).font(.headline)
         }
     }
 
@@ -219,7 +229,7 @@ struct MobileTaskRow: View {
                 withAnimation(.snappy) { store.toggleDone(task.id) }
             } label: {
                 Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
+                    .font(.title2)
                     .foregroundStyle(done ? Color.green : board.accentColor(of: task))
             }
             .buttonStyle(.borderless)
@@ -233,23 +243,23 @@ struct MobileTaskRow: View {
                         Text(level.icon).font(.caption)
                     }
                     Text(task.title)
-                        .font(.body.weight(.medium))
+                        .font(.title3.weight(.medium))
                         .strikethrough(done, color: .secondary)
                         .foregroundStyle(done ? .secondary : .primary)
                         .lineLimit(3)
                 }
                 if !task.notes.isEmpty {
-                    Text(task.notes).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    Text(task.notes).font(.body).foregroundStyle(.secondary).lineLimit(2)
                 }
                 let tags = board.tags(for: task)
                 if !tags.isEmpty || !task.dates.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 5) {
-                            ForEach(tags) { TagChip(tag: $0, small: true) }
+                            ForEach(tags) { TagChip(tag: $0).environment(\.fontScale, MobileStyle.tagScale) }
                             ForEach(task.dates.sorted { $0.date < $1.date }) { d in
                                 let overdue = board.isOverdue(d, of: task)
                                 Label(d.date.shortLabel, systemImage: d.kind.symbol)
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .foregroundStyle(overdue ? .red : d.kind.color)
                             }
                         }
@@ -279,8 +289,8 @@ struct MobileTaskRow: View {
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.bold))
                         .rotationEffect(.degrees(showSubtasks ? 90 : 0))
-                    Image(systemName: "checklist").font(.caption)
-                    Text("\(doneCount)/\(task.subtasks.count)").font(.caption.monospacedDigit())
+                    Image(systemName: "checklist").font(.subheadline)
+                    Text("\(doneCount)/\(task.subtasks.count)").font(.subheadline.monospacedDigit())
                     ProgressView(value: Double(doneCount), total: Double(task.subtasks.count))
                         .frame(width: 70)
                         .tint(board.accentColor(of: task))
@@ -298,7 +308,7 @@ struct MobileTaskRow: View {
                             Image(systemName: sub.isDone ? "checkmark.square.fill" : "square")
                                 .foregroundStyle(sub.isDone ? Color.green : Color.secondary)
                             Text(sub.title)
-                                .font(.callout)
+                                .font(.body)
                                 .strikethrough(sub.isDone, color: .secondary)
                                 .foregroundStyle(sub.isDone ? .secondary : .primary)
                                 .multilineTextAlignment(.leading)
@@ -310,4 +320,10 @@ struct MobileTaskRow: View {
             }
         }
     }
+}
+
+enum MobileStyle {
+    /// Tag chips are drawn at caption size (shared with the Mac); on the phone they read
+    /// better a good deal larger.
+    static let tagScale: CGFloat = 1.35
 }

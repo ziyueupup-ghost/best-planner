@@ -14,6 +14,23 @@ struct MobileSettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
     }
 
+    /// Where the data actually goes, for tracking down sync problems.
+    private var diagnostics: [String] {
+        let fm = FileManager.default
+        let file = PlannerStorage.fileURL
+        func short(_ url: URL) -> String { url.pathComponents.suffix(3).joined(separator: "/") }
+        return [
+            "folder: \(PlannerStorage.pickedFolder.map(short) ?? "-")",
+            "access: \(FolderAccess.accessGranted.map { $0 ? "yes" : "NO" } ?? "-")\(FolderAccess.bookmarkWasStale ? " (stale)" : "")",
+            "file exists: \(fm.fileExists(atPath: file.path)) readable: \(fm.isReadableFile(atPath: file.path)) writable: \(fm.isWritableFile(atPath: file.path))",
+            "file date: \(PlannerStorage.modificationDate().map { $0.formatted(date: .omitted, time: .standard) } ?? "-")",
+            "group: \(PlannerStorage.appGroupContainer != nil ? "yes" : "NO") local: \(short(PlannerStorage.localDirectory))",
+            "bundle: \(Bundle.main.bundleIdentifier ?? "-")",
+            "copy date: \(PlannerStorage.mirrorModificationDate().map { $0.formatted(date: .omitted, time: .standard) } ?? "-")",
+            "save error: \(store.saveError ?? "none")",
+        ]
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -43,6 +60,33 @@ struct MobileSettingsView: View {
                 }
 
                 Section {
+                    ForEach(store.board.columns) { c in
+                        Toggle(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)", isOn: Binding(
+                            get: { store.board.widgetColumnIDs.contains(c.id) },
+                            set: { _ in store.toggleWidgetColumn(c.id) }))
+                    }
+                    if !store.board.tags.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L("只显示带这些标签的任务"))
+                            FlowLayout(spacing: 6) {
+                                ForEach(store.board.tags) { tag in
+                                    Button { store.toggleWidgetTag(tag.id) } label: {
+                                        TagChip(tag: tag, selected: store.board.widgetTagIDs.contains(tag.id))
+                                            .environment(\.fontScale, MobileStyle.tagScale)
+                                    }
+                                    .buttonStyle(.borderless)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text(L("桌面小组件显示"))
+                } footer: {
+                    Text(L("iPhone 和 Mac 的小组件都按这里显示，两边会同步。状态都不选就按默认显示；标签都不选就显示所有任务。"))
+                }
+
+                Section {
                     Picker(L("语言"), selection: $language) {
                         Text(L("跟随系统")).tag(AppLanguage.system)
                         Text("中文").tag(AppLanguage.chinese)
@@ -58,6 +102,12 @@ struct MobileSettingsView: View {
 
                 Section {
                     LabeledContent(L("版本"), value: version)
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(diagnostics, id: \.self) { Text($0) }
+                    }
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
                     LabeledContent(L("任务"), value: "\(store.tasks.count)")
                 }
             }

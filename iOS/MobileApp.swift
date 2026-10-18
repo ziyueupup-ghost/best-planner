@@ -37,6 +37,9 @@ final class MobileAppDelegate: NSObject, UIApplicationDelegate {
 /// open it after the user picks it once; a bookmark reopens it on later launches.
 enum FolderAccess {
     private static let key = "iCloudFolderBookmark"
+    /// For the diagnostics in Settings.
+    nonisolated(unsafe) static var accessGranted: Bool?
+    nonisolated(unsafe) static var bookmarkWasStale = false
 
     static func restore() {
         guard let data = UserDefaults.standard.data(forKey: key) else { return }
@@ -44,7 +47,8 @@ enum FolderAccess {
         guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else {
             return
         }
-        _ = url.startAccessingSecurityScopedResource()
+        accessGranted = url.startAccessingSecurityScopedResource()
+        bookmarkWasStale = stale
         if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: key) }
         PlannerStorage.pickedFolder = url
     }
@@ -52,7 +56,7 @@ enum FolderAccess {
     /// Connects the picked folder (from the Files picker) and remembers it.
     @MainActor
     static func connect(_ url: URL, store: BoardStore) throws {
-        _ = url.startAccessingSecurityScopedResource()
+        accessGranted = url.startAccessingSecurityScopedResource()
         let bookmark = try url.bookmarkData()
         try store.connectFolder(url)
         UserDefaults.standard.set(bookmark, forKey: key)

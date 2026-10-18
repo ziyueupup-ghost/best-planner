@@ -617,5 +617,12 @@ enum English {
         "没有找到匹配的任务": "No matching tasks",
         "删除": "Delete",
         "这个文件夹里的数据暂时读不出来（可能还在从 iCloud 下载），请稍后再试。": "The data in this folder can’t be read right now (it may still be downloading from iCloud). Please try again in a moment.",
+        "没能保存到 iCloud，会自动重试：{}": "Couldn’t save to iCloud, will retry: {}",
+        "桌面小组件显示": "Widgets Show",
+        "只显示带这些标签的任务": "Only tasks with these tags",
+        "显示这些状态的任务": "Tasks in these statuses",
+        "小组件": "Widgets",
+        "iPhone 和 Mac 的小组件都按这里显示，两边会同步。状态都不选就按默认显示；标签都不选就显示所有任务。": "Widgets on your iPhone and Mac follow this, and it syncs between them. No status chosen: each widget size shows its default. No tag chosen: all tasks.",
+        "选择桌面小组件显示哪些状态和标签": "Choose which statuses and tags the widgets show",
     ]
 }

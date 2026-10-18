@@ -113,6 +113,7 @@ struct MobileTaskEditor: View {
                             }
                         } label: {
                             TagChip(tag: tag, selected: selected)
+                                .environment(\.fontScale, MobileStyle.tagScale)
                         }
                         .buttonStyle(.plain)
                     }

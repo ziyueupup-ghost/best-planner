@@ -336,6 +336,10 @@ struct Board: Codable, Equatable {
     var subtaskPacks: [SubtaskPack] = Board.defaultPacks
     /// 今日总结 written in 回顾, keyed "yyyy-MM-dd".
     var dayNotes: [String: String] = [:]
+    /// Statuses the widgets show (empty: the widget's own default).
+    var widgetColumnIDs: [String] = []
+    /// Only tasks with one of these tags appear on the widgets (empty: all tasks).
+    var widgetTagIDs: [String] = []
 
     init(columns: [BoardColumn], tags: [Tag], tasks: [PlannerTask]) {
         self.columns = columns
@@ -356,7 +360,22 @@ struct Board: Codable, Equatable {
         trash = try c.decodeIfPresent([PlannerTask].self, forKey: .trash) ?? []
         subtaskPacks = try c.decodeIfPresent([SubtaskPack].self, forKey: .subtaskPacks) ?? Board.defaultPacks
         dayNotes = try c.decodeIfPresent([String: String].self, forKey: .dayNotes) ?? [:]
+        widgetColumnIDs = (try? c.decodeIfPresent([String].self, forKey: .widgetColumnIDs)) ?? []
+        widgetTagIDs = (try? c.decodeIfPresent([String].self, forKey: .widgetTagIDs)) ?? []
         if columns.isEmpty { columns = Board.defaultColumns }
+    }
+
+    // MARK: Widget filter
+
+    /// The statuses chosen for the widgets, in board order (deleted ones are skipped).
+    var widgetColumns: [BoardColumn] {
+        columns.filter { widgetColumnIDs.contains($0.id) }
+    }
+
+    /// Whether a task passes the widget's tag filter.
+    func showsOnWidget(_ task: PlannerTask) -> Bool {
+        let chosen = widgetTagIDs.filter { id in tags.contains { $0.id == id } }
+        return chosen.isEmpty || task.tagIDs.contains { chosen.contains($0) }
     }
 
     static let defaultColumns: [BoardColumn] = [
@@ -506,12 +525,32 @@ enum PlannerStorage {
     static let defaultAppGroup = "group.com.bestplanner.app"
     /// SideStore/AltStore rename the app group when they sign the app and list the new
     /// name under ALTAppGroups in Info.plist.
-    static var appGroupID: String {
-        (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?.first ?? defaultAppGroup
-    }
+    /// Other installers (iloader…) rename it the same way as the bundle id
+    /// ("com.bestplanner.app.TEAMID" → "group.com.bestplanner.app.TEAMID") without saying so.
+    static let appGroupContainer: URL? = {
+        var candidates: [String] = []
+        if var id = Bundle.main.bundleIdentifier {
+            if id.hasSuffix(".widget") { id.removeLast(".widget".count) }
+            let base = "com.bestplanner.app"
+            if id.hasPrefix(base) { candidates.append("group." + base + id.dropFirst(base.count)) }
+        }
+        candidates += (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String]) ?? []
+        candidates.append(defaultAppGroup)
+        // Only a container we can actually write in: a group we're not entitled to may still
+        // give a path. (Checking the container itself isn't enough; try making our folder.)
+        let fm = FileManager.default
+        for id in candidates {
+            guard let url = fm.containerURL(forSecurityApplicationGroupIdentifier: id) else { continue }
+            let folder = url.appendingPathComponent("Planner", isDirectory: true)
+            if (try? fm.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
+               fm.isWritableFile(atPath: folder.path) {
+                return url
+            }
+        }
+        return nil
+    }()
     static var localDirectory: URL {
-        let base = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
-            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let base = appGroupContainer ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Planner", isDirectory: true)
     }
     /// The iCloud Drive folder chosen in the app (security-scoped; set by the app at launch).
@@ -612,22 +651,34 @@ enum PlannerStorage {
         (try? FileManager.default.attributesOfItem(atPath: fileURL.path))?[.modificationDate] as? Date
     }
 
+    /// Why the last save didn't reach the data file (nil when it did).
+    nonisolated(unsafe) static var lastSaveError: String?
+
     static func save(_ board: Board) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        do {
-            let data = try encoder.encode(board)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try writeData(data, to: fileURL)
-            if usesICloud {
+        guard let data = try? encoder.encode(board) else { return }
+        // The local copy first, so an edit is never lost when the iCloud copy can't be written.
+        if usesICloud {
+            do {
                 try FileManager.default.createDirectory(at: localDirectory, withIntermediateDirectories: true)
                 try data.write(to: localFileURL, options: .atomic)
-                #if os(iOS)
-                try data.write(to: mirrorBaseURL, options: .atomic)
-                #endif
+            } catch {
+                NSLog("Planner: failed to save the local copy: \(error)")
             }
+        }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try writeData(data, to: fileURL)
+            lastSaveError = nil
+            #if os(iOS)
+            // Only once iCloud has it: until then the local copy differs from this base, so
+            // the next launch (or retry) merges it in again and saves it.
+            if usesICloud { try? data.write(to: mirrorBaseURL, options: .atomic) }
+            #endif
         } catch {
+            lastSaveError = error.localizedDescription
             NSLog("Planner: failed to save board: \(error)")
         }
     }

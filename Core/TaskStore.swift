@@ -12,6 +12,9 @@ final class BoardStore: ObservableObject {
     /// One store for the app, shared by the main window, quick add and the menu bar.
     static let shared = BoardStore()
 
+    /// Set when the last save couldn't write the data file (shown to the user; retried).
+    @Published private(set) var saveError: String?
+
     @Published private(set) var board: Board {
         willSet { registerUndo(from: board, to: newValue) }
     }
@@ -87,6 +90,12 @@ final class BoardStore: ObservableObject {
         #if os(iOS)
         // Ticks made on the widget while the app was closed.
         if absorbWidgetChanges() { persist() }
+        // No copy for the widget yet (first launch, or the app was reinstalled): make one.
+        if PlannerStorage.usesICloud, PlannerStorage.readMirror() == nil || PlannerStorage.readMirrorBase() == nil {
+            PlannerStorage.saveMirror(board)
+            knownMirrorDate = PlannerStorage.mirrorModificationDate()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         #endif
     }
 
@@ -111,6 +120,8 @@ final class BoardStore: ObservableObject {
         #if os(iOS)
         if absorbWidgetChanges() { flush(); return }
         #endif
+        // The last save failed: try again (the edit is still here and in the local copy).
+        if saveError != nil { flush(); return }
         guard let date = PlannerStorage.modificationDate(), date != knownFileDate,
               let fresh = PlannerStorage.read() else { return }
         knownFileDate = date
@@ -235,6 +246,17 @@ final class BoardStore: ObservableObject {
             for column in board.columns { renumber(board.tasks(in: column.id)) }
         }
         board.sortMode = mode
+        persist()
+    }
+
+    /// Turns a status or tag on or off for the widgets.
+    func toggleWidgetColumn(_ id: String) {
+        if let i = board.widgetColumnIDs.firstIndex(of: id) { board.widgetColumnIDs.remove(at: i) } else { board.widgetColumnIDs.append(id) }
+        persist()
+    }
+
+    func toggleWidgetTag(_ id: String) {
+        if let i = board.widgetTagIDs.firstIndex(of: id) { board.widgetTagIDs.remove(at: i) } else { board.widgetTagIDs.append(id) }
         persist()
     }
 
@@ -588,6 +610,7 @@ final class BoardStore: ObservableObject {
             isRestoring = false
         }
         PlannerStorage.save(board)
+        saveError = PlannerStorage.lastSaveError
         syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
         #if os(iOS)

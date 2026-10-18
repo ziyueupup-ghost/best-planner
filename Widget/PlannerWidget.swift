@@ -59,6 +59,12 @@ struct PlannerWidgetView: View {
 
     private var board: Board { entry.board }
     private var activeColumns: [BoardColumn] { board.columns.filter { !$0.isDone } }
+    /// Statuses picked in the app's widget settings (empty: each size's default).
+    private var chosenColumns: [BoardColumn] { board.widgetColumns }
+    /// A column's tasks in board order, minus those the widget's tag filter leaves out.
+    private func shown(_ columnID: String) -> [PlannerTask] {
+        board.displayOrder(in: columnID).filter(board.showsOnWidget)
+    }
     /// Ticking a task needs somewhere to move it.
     private var canCompleteTasks: Bool { board.columns.contains { $0.isDone } }
 
@@ -73,10 +79,11 @@ struct PlannerWidgetView: View {
     // MARK: Small — progress + what's next
 
     private var small: some View {
-        let total = board.tasks.count
-        let done = board.tasks.filter { board.isDone($0) }.count
+        let counted = board.tasks.filter(board.showsOnWidget)
+        let total = counted.count
+        let done = counted.filter { board.isDone($0) }.count
         // Same order as the board: columns left to right, tasks top to bottom.
-        let next = activeColumns.flatMap { board.displayOrder(in: $0.id) }
+        let next = (chosenColumns.isEmpty ? activeColumns : chosenColumns).flatMap { shown($0.id) }
         return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Best Planner").font(.headline)
@@ -101,7 +108,8 @@ struct PlannerWidgetView: View {
     // MARK: Medium — first two active columns
 
     private var medium: some View {
-        let cols = Array((activeColumns.isEmpty ? board.columns : activeColumns).prefix(2))
+        let defaults = activeColumns.isEmpty ? board.columns : activeColumns
+        let cols = Array((chosenColumns.isEmpty ? defaults : chosenColumns).prefix(2))
         return HStack(alignment: .top, spacing: 12) {
             ForEach(Array(cols.enumerated()), id: \.element.id) { i, c in
                 if i > 0 { Divider() }
@@ -113,7 +121,7 @@ struct PlannerWidgetView: View {
     // MARK: Large — all columns stacked, subtasks included
 
     private var large: some View {
-        let cols = Array(board.columns.prefix(4))
+        let cols = Array((chosenColumns.isEmpty ? board.columns : chosenColumns).prefix(4))
         let active = max(cols.filter { !$0.isDone }.count, 1)
         let budget = max(3, 12 / active)
         return VStack(alignment: .leading, spacing: 7) {
@@ -135,7 +143,7 @@ struct PlannerWidgetView: View {
     // MARK: Pieces
 
     private func column(_ c: BoardColumn, budget: Int) -> some View {
-        let tasks = board.displayOrder(in: c.id)
+        let tasks = shown(c.id)
         return VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 if c.icon.isEmpty {

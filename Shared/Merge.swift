@@ -119,6 +119,8 @@ extension Board {
         r.priorities = pick(base.priorities, mine.priorities, theirs.priorities)
         r.defaultPriorityID = pick(base.defaultPriorityID, mine.defaultPriorityID, theirs.defaultPriorityID)
         r.subtaskPacks = pick(base.subtaskPacks, mine.subtaskPacks, theirs.subtaskPacks)
+        r.widgetColumnIDs = pick(base.widgetColumnIDs, mine.widgetColumnIDs, theirs.widgetColumnIDs)
+        r.widgetTagIDs = pick(base.widgetTagIDs, mine.widgetTagIDs, theirs.widgetTagIDs)
         var notes = theirs.dayNotes
         for key in Set(base.dayNotes.keys).union(mine.dayNotes.keys) where base.dayNotes[key] != mine.dayNotes[key] {
             notes[key] = mine.dayNotes[key]

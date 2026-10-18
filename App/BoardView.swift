@@ -24,6 +24,7 @@ struct BoardView: View {
     @AppStorage(FontScale.storageKey) private var storedFontScale = 1.0
     @State private var editing: PlannerTask?
     @State private var creatingIn: ColumnRef?
+    @State private var showWidgetFilter = false
     @State private var showSettings = false
     @State private var search = ""
     @State private var tagFilter: String?
@@ -127,6 +128,15 @@ struct BoardView: View {
                 .help(L("看板：按状态分列；日程：按日期看没完成的任务；回顾：日历看每天完成了什么，还有成就"))
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    showWidgetFilter.toggle()
+                } label: {
+                    Label(L("小组件"), systemImage: "square.grid.2x2")
+                }
+                .help(L("选择桌面小组件显示哪些状态和标签"))
+                .popover(isPresented: $showWidgetFilter, arrowEdge: .bottom) {
+                    WidgetFilterView().environmentObject(store)
+                }
                 Menu {
                     LanguageChoices()
                 } label: {
