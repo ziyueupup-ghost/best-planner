@@ -87,7 +87,10 @@ def action(identifier, spec, mangled):
 
 def main():
     appex = sys.argv[1]
-    binary = os.path.join(appex, "Contents", "MacOS", MODULE)
+    # macOS bundles keep code in Contents/MacOS and resources in Contents/Resources;
+    # iOS bundles are flat.
+    flat = not os.path.isdir(os.path.join(appex, "Contents"))
+    binary = os.path.join(appex, MODULE) if flat else os.path.join(appex, "Contents", "MacOS", MODULE)
     names = mangled_names(binary)
     data = {
         "actions": {i: action(i, spec, names[i]) for i, spec in INTENTS.items()},
@@ -103,7 +106,7 @@ def main():
         "shortcutTileColor": 14,
         "version": 1,
     }
-    out = os.path.join(appex, "Contents", "Resources", "Metadata.appintents")
+    out = os.path.join(appex, "Metadata.appintents") if flat else os.path.join(appex, "Contents", "Resources", "Metadata.appintents")
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "extract.actionsdata"), "w") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))

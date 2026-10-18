@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#else
+import SwiftUI
+#endif
 import SwiftUI
 
 // App-wide font size. macOS has no Dynamic Type for apps, so every text style is
@@ -98,7 +102,11 @@ extension FontScale {
     /// fonts nor a small window clip it.
     @MainActor
     static func sheetSize(width: CGFloat, height: CGFloat, scale: CGFloat) -> CGSize {
+        #if os(macOS)
         let window = NSApp.mainWindow?.frame.size ?? NSApp.windows.first?.frame.size ?? CGSize(width: 1400, height: 1000)
+        #else
+        let window = CGSize(width: width * scale + 40, height: height * scale + 60)
+        #endif
         return CGSize(width: max(380, min(width * scale, window.width - 40)),
                       height: max(320, min(height * scale, window.height - 60)))
     }

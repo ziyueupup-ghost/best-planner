@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#else
+import UIKit
+#endif
 import Foundation
 import SwiftUI
 
@@ -476,6 +480,7 @@ struct Board: Codable, Equatable {
 /// The widget is sandboxed, so paths are built from the real home directory (not its
 /// container) and reached through sandbox exceptions for exactly these folders.
 enum PlannerStorage {
+    #if os(macOS)
     static var realHome: URL {
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {
             return URL(fileURLWithPath: String(cString: dir), isDirectory: true)
@@ -486,18 +491,64 @@ enum PlannerStorage {
     static var localDirectory: URL {
         realHome.appendingPathComponent("Library/Application Support/Planner", isDirectory: true)
     }
-    static var localFileURL: URL { localDirectory.appendingPathComponent("planner.json") }
-    static var backupDirectory: URL { localDirectory.appendingPathComponent("Backups", isDirectory: true) }
 
     static var iCloudDriveRoot: URL {
         realHome.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
     }
     static var iCloudDirectory: URL { iCloudDriveRoot.appendingPathComponent("Best Planner", isDirectory: true) }
-    /// Present when iCloud sync is on (kept locally so both the app and widget can check it).
-    private static var syncFlagURL: URL { localDirectory.appendingPathComponent("use-icloud") }
 
     static var isICloudDriveAvailable: Bool { FileManager.default.fileExists(atPath: iCloudDriveRoot.path) }
     static var usesICloud: Bool { FileManager.default.fileExists(atPath: syncFlagURL.path) && isICloudDriveAvailable }
+    #else
+    // iPhone: the app reads and writes the iCloud Drive folder the user picked (shared with
+    // the Mac). The widget can't open that folder, so the local copy lives in the app group
+    // container, where the widget reads it and saves its ticks.
+    static let defaultAppGroup = "group.com.bestplanner.app"
+    /// SideStore/AltStore rename the app group when they sign the app and list the new
+    /// name under ALTAppGroups in Info.plist.
+    static var appGroupID: String {
+        (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?.first ?? defaultAppGroup
+    }
+    static var localDirectory: URL {
+        let base = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
+            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return base.appendingPathComponent("Planner", isDirectory: true)
+    }
+    /// The iCloud Drive folder chosen in the app (security-scoped; set by the app at launch).
+    nonisolated(unsafe) static var pickedFolder: URL?
+    static var iCloudDirectory: URL { pickedFolder ?? localDirectory }
+    static var isICloudDriveAvailable: Bool { pickedFolder != nil }
+    static var usesICloud: Bool { pickedFolder != nil }
+    /// The local copy (what the widget sees and edits).
+    static func mirrorModificationDate() -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: localFileURL.path))?[.modificationDate] as? Date
+    }
+    static func readMirror() -> Board? { decode(localFileURL) }
+    /// What the app last wrote to the local copy. The widget only edits the copy itself,
+    /// so comparing the two shows exactly what the widget changed (even across launches).
+    static var mirrorBaseURL: URL { localDirectory.appendingPathComponent("planner.base.json") }
+    static func readMirrorBase() -> Board? { decode(mirrorBaseURL) }
+    /// Refreshes the widget's copy (e.g. after new data arrived from the Mac).
+    static func saveMirror(_ board: Board) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(board) else { return }
+        try? FileManager.default.createDirectory(at: localDirectory, withIntermediateDirectories: true)
+        try? data.write(to: localFileURL, options: .atomic)
+        try? data.write(to: mirrorBaseURL, options: .atomic)
+    }
+    /// The picked folder's file only (no falling back to the local copy).
+    static func readCloudFile() -> Board? {
+        ensureDownloaded(fileURL)
+        return decode(fileURL)
+    }
+    #endif
+
+    static var localFileURL: URL { localDirectory.appendingPathComponent("planner.json") }
+    static var backupDirectory: URL { localDirectory.appendingPathComponent("Backups", isDirectory: true) }
+    /// Present when iCloud sync is on (kept locally so both the app and widget can check it).
+    private static var syncFlagURL: URL { localDirectory.appendingPathComponent("use-icloud") }
 
     static var directory: URL { usesICloud ? iCloudDirectory : localDirectory }
     static var fileURL: URL { directory.appendingPathComponent("planner.json") }
@@ -505,8 +556,37 @@ enum PlannerStorage {
     private static func decode(_ url: URL) -> Board? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = readData(url) else { return nil }
         return try? decoder.decode(Board.self, from: data)
+    }
+
+    private static func readData(_ url: URL) -> Data? {
+        #if os(iOS)
+        // Files in iCloud Drive on iOS belong to a file provider: read and write them
+        // through a file coordinator so the latest version is used and changes sync.
+        if usesICloud, url == fileURL, FileManager.default.fileExists(atPath: url.path) {
+            var data: Data?
+            var error: NSError?
+            NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &error) { data = try? Data(contentsOf: $0) }
+            return data
+        }
+        #endif
+        return try? Data(contentsOf: url)
+    }
+
+    private static func writeData(_ data: Data, to url: URL) throws {
+        #if os(iOS)
+        if usesICloud, url == fileURL {
+            var coordinationError: NSError?
+            var writeError: Error?
+            NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
+                do { try data.write(to: target, options: .atomic) } catch { writeError = error }
+            }
+            if let error = coordinationError ?? writeError { throw error }
+            return
+        }
+        #endif
+        try data.write(to: url, options: .atomic)
     }
 
     static func load() -> Board { read() ?? .empty }
@@ -539,10 +619,13 @@ enum PlannerStorage {
         do {
             let data = try encoder.encode(board)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try data.write(to: fileURL, options: .atomic)
+            try writeData(data, to: fileURL)
             if usesICloud {
                 try FileManager.default.createDirectory(at: localDirectory, withIntermediateDirectories: true)
                 try data.write(to: localFileURL, options: .atomic)
+                #if os(iOS)
+                try data.write(to: mirrorBaseURL, options: .atomic)
+                #endif
             }
         } catch {
             NSLog("Planner: failed to save board: \(error)")
@@ -632,12 +715,22 @@ extension Color {
                   blue: Double(v & 0xFF) / 255)
     }
 
+    /// sRGB red, green, blue (0…1), on both macOS and iOS.
+    var rgb: (r: Double, g: Double, b: Double)? {
+        #if canImport(AppKit)
+        guard let c = NSColor(self).usingColorSpace(.sRGB) else { return nil }
+        return (Double(c.redComponent), Double(c.greenComponent), Double(c.blueComponent))
+        #else
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        return (Double(r), Double(g), Double(b))
+        #endif
+    }
+
     var hexString: String {
-        guard let c = NSColor(self).usingColorSpace(.sRGB) else { return "#888888" }
-        return String(format: "#%02X%02X%02X",
-                      Int((c.redComponent * 255).rounded()),
-                      Int((c.greenComponent * 255).rounded()),
-                      Int((c.blueComponent * 255).rounded()))
+        guard let c = rgb else { return "#888888" }
+        func byte(_ v: Double) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", byte(c.r), byte(c.g), byte(c.b))
     }
 }
 
@@ -700,8 +793,8 @@ struct FlowLayout: Layout {
 extension Color {
     /// Black or white, whichever reads better on top of this color.
     var contrastingText: Color {
-        guard let c = NSColor(self).usingColorSpace(.sRGB) else { return .white }
-        let luminance = 0.299 * c.redComponent + 0.587 * c.greenComponent + 0.114 * c.blueComponent
+        guard let c = rgb else { return .white }
+        let luminance = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
         return luminance > 0.65 ? .black : .white
     }
 }

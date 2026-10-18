@@ -70,6 +70,4 @@ extension Notification.Name {
     static let settingsRequested = Notification.Name("PlannerSettingsRequested")
     static let trashRequested = Notification.Name("PlannerTrashRequested")
     static let iCloudToggleRequested = Notification.Name("PlannerICloudToggleRequested")
-    /// object: task id — opens that task's editor (e.g. right after duplicating it).
-    static let openTaskRequested = Notification.Name("PlannerOpenTaskRequested")
 }

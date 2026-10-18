@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 // MARK: - Tag model
@@ -653,10 +652,9 @@ struct TagMark: View {
 
 extension Color {
     /// Blends toward another color (e.g. white to lighten, black to darken).
-    func mixed(with other: NSColor, _ fraction: CGFloat) -> Color {
-        guard let c = NSColor(self).usingColorSpace(.sRGB),
-              let o = other.usingColorSpace(.sRGB),
-              let m = c.blended(withFraction: fraction, of: o) else { return self }
-        return Color(nsColor: m)
+    func mixed(with other: Color, _ fraction: Double) -> Color {
+        guard let c = rgb, let o = other.rgb else { return self }
+        func mix(_ a: Double, _ b: Double) -> Double { a + (b - a) * fraction }
+        return Color(.sRGB, red: mix(c.r, o.r), green: mix(c.g, o.g), blue: mix(c.b, o.b))
     }
 }

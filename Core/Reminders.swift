@@ -1,7 +1,11 @@
+#if canImport(AppKit)
 import AppKit
+#else
+import UIKit
+#endif
 import UserNotifications
 
-/// Schedules macOS notifications for tasks: 提醒 dates at their exact time, and 截止
+/// Schedules notifications (macOS and iOS) for tasks: 提醒 dates at their exact time, and 截止
 /// dates at 9:00 on the day. Rebuilt from the board after every save, so editing or
 /// completing a task updates its notifications. Clicking one opens the task.
 @MainActor
@@ -67,7 +71,9 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let taskID = response.notification.request.content.userInfo["taskID"] as? String
         Task { @MainActor in
+            #if os(macOS)
             NSApp.activate(ignoringOtherApps: true)
+            #endif
             if let taskID {
                 self.pendingOpenTaskID = taskID
                 NotificationCenter.default.post(name: .openTaskRequested, object: taskID)
@@ -77,18 +83,7 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
     }
 }
 
-/// Sets the notification delegate before launch finishes, so a click on a notification
-/// that started the app is still delivered.
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated { ReminderScheduler.shared.start() }
-    }
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        MainActor.assumeIsolated {
-            GlobalHotKey.shared.register()
-            Updater.checkOnLaunch()
-            WidgetRefresher.afterUpdate()
-        }
-    }
+extension Notification.Name {
+    /// Asks the board to open a task's editor (object: the task id).
+    static let openTaskRequested = Notification.Name("PlannerOpenTaskRequested")
 }

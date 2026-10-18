@@ -1,4 +1,8 @@
+#if canImport(AppKit)
 import AppKit
+#else
+import UIKit
+#endif
 import Foundation
 import SwiftUI
 import WidgetKit
@@ -41,10 +45,11 @@ final class BoardStore: ObservableObject {
         // Daily backup; plus one the first time a new version opens the data (before it
         // writes anything), so an update can never cost more than this copy.
         let versionKey = "lastBackedUpVersion"
-        let firstRunOfVersion = UserDefaults.standard.string(forKey: versionKey) != Updater.currentVersion
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        let firstRunOfVersion = UserDefaults.standard.string(forKey: versionKey) != appVersion
         PlannerStorage.backup(force: firstRunOfVersion)
         if firstRunOfVersion { PlannerStorage.backup() }
-        UserDefaults.standard.set(Updater.currentVersion, forKey: versionKey)
+        UserDefaults.standard.set(appVersion, forKey: versionKey)
         // Deleted tasks are kept for 30 days.
         let cutoff = Date().addingTimeInterval(-30 * 86_400)
         board.trash.removeAll { ($0.deletedAt ?? .distantPast) < cutoff }
@@ -55,24 +60,34 @@ final class BoardStore: ObservableObject {
         }
         // Write once so a migrated older board is persisted in the current format
         // (not when the file couldn't be read: leave it alone until there's a real edit).
+        // (On iPhone the file may be an older iCloud copy not yet updated: don't write it
+        // until there's a real edit, which merges first.)
+        #if os(macOS)
         if readable != nil || !PlannerStorage.hasData { PlannerStorage.save(board) }
+        #endif
         syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
         ReminderScheduler.shared.reschedule(board)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        #if os(macOS)
+        let willQuit = NSApplication.willTerminateNotification, didActivate = NSApplication.didBecomeActiveNotification
+        #else
+        // iOS apps are suspended rather than quit: save when going to the background.
+        let willQuit = UIApplication.didEnterBackgroundNotification, didActivate = UIApplication.didBecomeActiveNotification
+        #endif
+        NotificationCenter.default.addObserver(forName: willQuit, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.flush() }
         }
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-        ) { [weak self] _ in
+        NotificationCenter.default.addObserver(forName: didActivate, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadIfChangedElsewhere() }
         }
         watchTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadIfChangedElsewhere() }
         }
         watchDataFolder()
+        #if os(iOS)
+        // Ticks made on the widget while the app was closed.
+        if absorbWidgetChanges() { persist() }
+        #endif
     }
 
     /// Gets told right away when the data folder changes (the widget saving), instead of
@@ -92,13 +107,30 @@ final class BoardStore: ObservableObject {
 
     /// Picks up changes made by the desktop widget (ticking tasks/subtasks there).
     func reloadIfChangedElsewhere() {
-        guard pendingSave == nil, let date = PlannerStorage.modificationDate(), date != knownFileDate,
+        guard pendingSave == nil else { return }
+        #if os(iOS)
+        if absorbWidgetChanges() { flush(); return }
+        #endif
+        guard let date = PlannerStorage.modificationDate(), date != knownFileDate,
               let fresh = PlannerStorage.read() else { return }
         knownFileDate = date
         isRestoring = true   // not an undoable edit
         board = fresh
         isRestoring = false
         syncedBoard = board
+        #if os(iOS)
+        // New data from the Mac: show it on the widget too.
+        if PlannerStorage.usesICloud {
+            // Don't overwrite a tick the widget saved meanwhile: merge it in and save all.
+            if absorbWidgetChanges() {
+                flush()
+                return
+            }
+            PlannerStorage.saveMirror(board)
+            knownMirrorDate = PlannerStorage.mirrorModificationDate()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        #endif
         ReminderScheduler.shared.reschedule(board)
     }
 
@@ -546,6 +578,9 @@ final class BoardStore: ObservableObject {
     func flush() {
         pendingSave?.cancel()
         pendingSave = nil
+        #if os(iOS)
+        _ = absorbWidgetChanges()
+        #endif
         if let date = PlannerStorage.modificationDate(), date != knownFileDate, let theirs = PlannerStorage.read() {
             let merged = Board.merge(base: syncedBoard, mine: board, theirs: theirs)
             isRestoring = true   // bringing in someone else's change isn't an undoable edit
@@ -555,7 +590,86 @@ final class BoardStore: ObservableObject {
         PlannerStorage.save(board)
         syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
+        #if os(iOS)
+        knownMirrorDate = PlannerStorage.mirrorModificationDate()
+        #endif
         WidgetCenter.shared.reloadAllTimelines()
         ReminderScheduler.shared.reschedule(board)
     }
+
+    // MARK: iPhone: widget copy and iCloud folder
+
+    #if os(iOS)
+    /// When the local copy last changed because of us; a different date means the widget
+    /// ticked something there.
+    private var knownMirrorDate: Date?
+
+    /// Merges what the widget changed in the local copy into the board. Only needed while
+    /// syncing with an iCloud folder (otherwise the local copy is the data file itself).
+    @discardableResult
+    private func absorbWidgetChanges() -> Bool {
+        guard PlannerStorage.usesICloud, let date = PlannerStorage.mirrorModificationDate(), date != knownMirrorDate,
+              let widgetBoard = PlannerStorage.readMirror() else { return false }
+        knownMirrorDate = date
+        // Base: what the widget started from (the copy as the app last wrote it).
+        let base = PlannerStorage.readMirrorBase() ?? syncedBoard
+        guard widgetBoard != base else { return false }
+        let merged = Board.merge(base: base, mine: board, theirs: widgetBoard)
+        guard merged != board else { return false }
+        isRestoring = true
+        board = merged
+        isRestoring = false
+        return true
+    }
+
+    enum FolderError: LocalizedError {
+        case unreadable
+        var errorDescription: String? {
+            L("这个文件夹里的数据暂时读不出来（可能还在从 iCloud 下载），请稍后再试。")
+        }
+    }
+
+    /// Starts syncing with the iCloud Drive folder the Mac uses. If it already has data
+    /// (the Mac's), that data is used; this iPhone's own data is backed up first.
+    func connectFolder(_ url: URL) throws {
+        flush()
+        let fm = FileManager.default
+        let file = url.appendingPathComponent("planner.json")
+        let hasCloudData = fm.fileExists(atPath: file.path)
+            || fm.fileExists(atPath: url.appendingPathComponent(".planner.json.icloud").path)
+        PlannerStorage.backup(force: true)
+        let previous = PlannerStorage.pickedFolder
+        PlannerStorage.pickedFolder = url
+        if hasCloudData {
+            guard let cloud = PlannerStorage.readCloudFile() else {
+                PlannerStorage.pickedFolder = previous
+                throw FolderError.unreadable
+            }
+            isRestoring = true
+            board = cloud
+            isRestoring = false
+        } else {
+            PlannerStorage.save(board)
+        }
+        usesICloud = true
+        syncedBoard = board
+        knownFileDate = PlannerStorage.modificationDate()
+        PlannerStorage.save(board)   // refreshes the widget's copy
+        knownMirrorDate = PlannerStorage.mirrorModificationDate()
+        knownFileDate = PlannerStorage.modificationDate()
+        watchDataFolder()
+        WidgetCenter.shared.reloadAllTimelines()
+        ReminderScheduler.shared.reschedule(board)
+    }
+
+    /// Stops syncing: keeps working on this iPhone's copy.
+    func disconnectFolder() {
+        flush()
+        PlannerStorage.pickedFolder = nil
+        usesICloud = false
+        knownFileDate = PlannerStorage.modificationDate()
+        knownMirrorDate = PlannerStorage.mirrorModificationDate()
+        watchDataFolder()
+    }
+    #endif
 }

@@ -37,7 +37,7 @@ compile() {
 }
 
 echo "▸ Compiling app (${ARCHS[*]})"
-compile "$APP/Contents/MacOS/Planner" Shared/*.swift App/*.swift
+compile "$APP/Contents/MacOS/Planner" Shared/*.swift Core/*.swift App/*.swift
 
 echo "▸ Compiling widget (${ARCHS[*]})"
 # Extensions must enter through Foundation's NSExtensionMain (as Xcode links them),

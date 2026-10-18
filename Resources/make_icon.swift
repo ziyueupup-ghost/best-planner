@@ -1,7 +1,10 @@
 // Renders the app icon into an .iconset folder. Usage: swift make_icon.swift <out.iconset>
+// With a second argument "ios": full-bleed square PNGs for the iPhone app (iOS rounds
+// the corners itself) named AppIcon60x60@2x/@3x.png, written into <out>.
 import AppKit
 
 let out = URL(fileURLWithPath: CommandLine.arguments[1])
+let ios = CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "ios"
 try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
 func render(_ px: Int) -> Data {
@@ -10,9 +13,17 @@ func render(_ px: Int) -> Data {
                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-    let s = CGFloat(px) / 1024
+    var s = CGFloat(px) / 1024
+    if ios {
+        // Blow the 824-point tile up to the whole canvas.
+        s = CGFloat(px) / 824
+        let t = NSAffineTransform()
+        t.translateX(by: -100 * s, yBy: -100 * s)
+        t.concat()
+    }
+    let radius = ios ? 0 : 185 * s
     let bg = NSBezierPath(roundedRect: NSRect(x: 100 * s, y: 100 * s, width: 824 * s, height: 824 * s),
-                          xRadius: 185 * s, yRadius: 185 * s)
+                          xRadius: radius, yRadius: radius)
     NSGradient(starting: NSColor(red: 0.20, green: 0.24, blue: 0.36, alpha: 1),
                ending: NSColor(red: 0.10, green: 0.12, blue: 0.20, alpha: 1))!.draw(in: bg, angle: -90)
 
@@ -34,6 +45,11 @@ func render(_ px: Int) -> Data {
     return rep.representation(using: .png, properties: [:])!
 }
 
+if ios {
+    try! render(120).write(to: out.appendingPathComponent("AppIcon60x60@2x.png"))
+    try! render(180).write(to: out.appendingPathComponent("AppIcon60x60@3x.png"))
+    exit(0)
+}
 for size in [16, 32, 128, 256, 512] {
     try! render(size).write(to: out.appendingPathComponent("icon_\(size)x\(size).png"))
     try! render(size * 2).write(to: out.appendingPathComponent("icon_\(size)x\(size)@2x.png"))
