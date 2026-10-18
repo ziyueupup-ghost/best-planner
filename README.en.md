@@ -2,7 +2,7 @@
 
 [中文说明](README.md)
 
-A macOS kanban planner with a desktop widget. Available in English and Chinese.
+A macOS kanban planner with a desktop widget, plus an iPhone app that syncs with the Mac through iCloud Drive. Available in English and Chinese.
 
 ## Download
 
@@ -15,6 +15,23 @@ A macOS kanban planner with a desktop widget. Available in English and Chinese.
 5. Updates: the app checks every time it opens and shows an alert when there is a new version — click **Update Now** and it downloads, verifies, installs and reopens itself (from 1.5.0 on). You can also use **Best Planner → Check for Updates…**.
 
 **Language:** the app follows your system language. To switch, use the 🌐 button in the toolbar or **Best Planner → Language**, then reopen the app.
+
+## iPhone app
+
+The iPhone app isn't on the App Store; you sign and install it yourself with a free Apple account. You need a Mac and a USB cable (no Xcode).
+
+1. **Install Best Planner on your Mac first and turn on iCloud sync**: **Best Planner → Sync with iCloud Drive…**. A “Best Planner” folder appears in iCloud Drive. Your Mac and iPhone must use the **same** Apple account, with iCloud Drive on.
+2. Download `BestPlanner-iOS-<version>.ipa` from Releases.
+3. Install [iloader](https://github.com/nab138/iloader/releases/latest) (SideStore's official installer) on the Mac and sign in with your Apple account.
+4. Connect the iPhone with the cable, select it in iloader, click **Import IPA** and choose the `.ipa`.
+5. On the iPhone: **Settings → General → VPN & Device Management**, trust your Apple account; **Settings → Privacy & Security**, turn on **Developer Mode** at the bottom (the phone restarts).
+6. Open Best Planner on the iPhone → **Settings** → **Choose the “Best Planner” folder in iCloud Drive** → select it → **Open**. Your iPhone and Mac now use the same data; changes usually arrive within about a minute.
+7. Home-screen widget: touch and hold the Home Screen → **Edit** → **Add Widget** → search “Best Planner”.
+
+Notes:
+- **A free account's signature expires after 7 days**; the app then won't open (no data is lost — it's all in iCloud). Every 7 days, use **Import IPA** in iloader again; it installs over the old one and keeps your data and settings.
+- SideStore's on-device sign-in is currently rejected by Apple (error -80045), so this guide installs with iloader on the Mac instead.
+- If syncing stops, look at the diagnostics at the bottom of the iPhone app's Settings: a `save error` other than none means the phone can't write to iCloud; otherwise check that the Mac's iCloud Drive is uploading.
 
 Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iCloud Drive (folder “Best Planner”) if you turn on iCloud sync.
 
@@ -34,7 +51,8 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Focus timer** (pomodoro) and statistics
 - Multi-select, duplicate, undo / redo (⌘Z), Recently Deleted (kept 30 days), adjustable text size
 - **iCloud Drive sync** between Macs, daily backups (kept 30 days)
-- **Desktop widget** (small / medium / large) with subtasks you can tick right on the desktop
+- **Desktop widget** (small / medium / large) with subtasks you can tick right on the desktop; the **Widgets** toolbar button chooses which statuses and tags it shows (synced to the iPhone)
+- **iPhone app**: board, task editing, subtasks and packs, reminders and a home-screen widget, on the same data as the Mac (see “iPhone app” above)
 
 ## Building from source
 
@@ -45,6 +63,15 @@ Only the Command Line Tools are needed (no Xcode): run `xcode-select --install` 
 ```
 
 builds the app and installs it to `/Applications/Best Planner.app`. To make a release, bump `VERSION` in `build.sh` and run `./build.sh release`; it writes a universal zip and its `.sha256` checksum to `dist/`. Upload **both** to GitHub Releases with the tag `v<version>`; the in-app one-click update downloads the zip and checks it against the `.sha256` (without it, the app just opens the download page).
+
+The iPhone app needs Xcode installed (for the iOS SDK and simulator; there's no Xcode project):
+
+```bash
+./build-ios.sh sim   # build and run in the iPhone simulator
+./build-ios.sh ipa   # make dist/BestPlanner-iOS-<version>.ipa (unsigned; the installer signs it with your Apple account)
+```
+
+Upload the `.ipa` to the release too.
 
 ### Translations
 

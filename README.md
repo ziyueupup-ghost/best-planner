@@ -2,7 +2,7 @@
 
 [English](README.en.md)
 
-macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
+macOS 看板任务管理 App，带桌面小组件；也有 iPhone 版，和 Mac 通过 iCloud 云盘同步。支持中文和英文。
 
 ## 功能
 
@@ -32,7 +32,8 @@ macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 - 每天自动备份，保留最近 30 天（菜单「Best Planner → 打开备份文件夹」）
 - 中文 / English：默认跟随系统语言，工具栏 🌐 按钮或菜单「Best Planner → 语言」切换，重新打开后生效
 - 所有修改自动保存
-- 桌面小组件（小 / 中 / 大）：显示子任务，可以直接打勾完成任务和子任务
+- 桌面小组件（小 / 中 / 大）：显示子任务，可以直接打勾完成任务和子任务；工具栏「小组件」按钮可以选择显示哪些状态、只显示哪些标签（Mac 和 iPhone 同步）
+- iPhone 版：看板、编辑任务、子任务和子任务包、提醒、手机桌面小组件，和 Mac 用同一份数据（见下面「iPhone 版」）
 
 ## 下载安装（给使用者）
 
@@ -43,6 +44,23 @@ macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 3. 需要 macOS 14（Sonoma）或更新；苹果芯片和 Intel 的 Mac 都可以用。
 4. 桌面小组件：在桌面空白处右键 →「编辑小组件」→ 搜索「Best Planner」。
 5. 以后有新版本时，打开软件会弹窗提醒，点「立即更新」即可自动更新，不用再手动下载（从 1.5.0 开始）。
+
+## iPhone 版
+
+iPhone 版没有上架 App Store，用免费的 Apple 账户自己签名安装。需要一台 Mac 和一根数据线（不需要 Xcode）。
+
+1. **先在 Mac 上装好 Best Planner，并打开 iCloud 同步**：菜单「Best Planner → 使用 iCloud 云盘同步…」。之后 iCloud 云盘里会有一个「Best Planner」文件夹。Mac 和 iPhone 要登录**同一个** Apple 账户，并且都打开 iCloud 云盘。
+2. 从 Releases 下载 `BestPlanner-iOS-版本号.ipa`。
+3. 在 Mac 上安装 [iloader](https://github.com/nab138/iloader/releases/latest)（SideStore 官方的安装工具），用你的 Apple 账户登录。
+4. iPhone 用数据线连上 Mac，在 iloader 里选你的手机，点「Import IPA」选刚才下载的 `.ipa`。
+5. 在 iPhone 上：「设置 → 通用 → VPN 与设备管理」里信任你的 Apple 账户；「设置 → 隐私与安全性」最下面打开「开发者模式」（手机会重启）。
+6. 打开 iPhone 上的 Best Planner →「设置」→「选择 iCloud 云盘里的『Best Planner』文件夹」→ 选中它 →「打开」。之后手机和 Mac 用同一份数据，改动一般 1 分钟左右同步过去。
+7. 手机桌面小组件：长按桌面空白处 →「编辑」→「添加小组件」→ 搜索「Best Planner」。
+
+注意：
+- **免费账户的签名 7 天过期**，过期后 App 打不开（数据不会丢，都在 iCloud 里）。每 7 天用 iloader 再「Import IPA」装一次就好，覆盖安装，数据和设置都保留。
+- 中国区 App Store 没有 SideStore 需要的 VPN 工具，而且 SideStore 在手机上登录目前会被苹果拒绝（错误 -80045），所以这里直接用 Mac 上的 iloader 安装。
+- 如果同步不了，打开 iPhone 版「设置」最下面的诊断信息看看：`save error` 不是 none 说明手机写不进 iCloud；如果手机正常，就检查 Mac 的 iCloud 云盘有没有在上传。
 
 每个人的数据都保存在自己电脑上（`~/Library/Application Support/Planner/`），开了 iCloud 同步的话放在 iCloud 云盘的 `Best Planner` 文件夹。
 
@@ -64,6 +82,15 @@ macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 
 会在 `dist/` 里生成通用版（苹果芯片 + Intel）的 zip 和它的校验文件 `.sha256`，**两个都要**上传到 GitHub Releases（标签写成 `v版本号`）。软件里的一键更新会下载 zip，并用 `.sha256` 校验，没有校验文件就只会打开下载页。
 
+iPhone 版需要安装 Xcode（用它的 iOS SDK 和模拟器，不需要 Xcode 工程）：
+
+```bash
+./build-ios.sh sim   # 编译并在 iPhone 模拟器里运行
+./build-ios.sh ipa   # 生成 dist/BestPlanner-iOS-版本号.ipa（未签名，安装工具会用你的 Apple 账户签名）
+```
+
+发布时把 `.ipa` 也一起上传到 Releases。
+
 ### 翻译
 
 界面文字在代码里写中文，并用 `L("…")` 包起来；英文在 `Shared/English.swift`，以中文原文为键（插入的值写成 `{}`）。以后新加 `L("…")` 时，记得在那里补上英文。
@@ -73,7 +100,9 @@ macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 | 路径 | 内容 |
 |---|---|
 | `Shared/Models.swift` | 数据模型、读写、App 和小组件共用的视图 |
-| `App/` | 主程序界面和数据存储 |
+| `App/` | Mac 版界面 |
+| `Core/` | Mac 和 iPhone 共用的数据存储（保存、合并、iCloud）和提醒通知 |
+| `iOS/` | iPhone 版界面（看板、编辑任务、设置） |
 | `Shared/` 其他文件 | 标签样式、折叠分组、历史记录、批量移动、重复任务、日程、回顾和成就、快速添加解析、字体大小 |
 | `App/` 其他文件 | 编辑窗口、设置、最近删除、日程视图、回顾视图、统计、专注计时、提醒通知、快速添加、附件、检查更新 |
 | `Widget/PlannerWidget.swift` | 桌面小组件 |
@@ -81,7 +110,8 @@ macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 | `Resources/make_icon.swift` | 生成 App 图标 |
 | `Resources/make_intents_metadata.py` | 生成小组件打勾按钮需要的 App Intents 元数据 |
 | `Shared/Localization.swift`、`Shared/English.swift` | 中英文切换和英文翻译 |
-| `build.sh` | 编译、签名、安装 |
+| `build.sh` | 编译、签名、安装 Mac 版 |
+| `build-ios.sh` | 编译 iPhone 版（模拟器或 .ipa） |
 
 数据保存在 `~/Library/Application Support/Planner/planner.json`。
 
@@ -90,3 +120,4 @@ macOS 看板任务管理 App，带桌面小组件。支持中文和英文。
 - 小组件必须用 `-e _NSExtensionMain` 链接（`build.sh` 里已经写好），否则系统会认不出它，组件一启动就退出。
 - 小组件上的打勾按钮靠 `Metadata.appintents` 让系统认识。Xcode 会自动生成，这里没有 Xcode，由 `make_intents_metadata.py` 生成；改了 `Widget/WidgetIntents.swift` 里的名字或参数，要同步改这个脚本。
 - App 用的是本机签名（ad-hoc），只能在这台电脑上运行。
+- iPhone 版被安装工具重新签名后，App 的 ID 和 App Group 名字会加上开发者团队编号（比如 `group.com.bestplanner.app.XXXXXXXXXX`），App 会按自己的 ID 推算出 App Group，小组件靠它共享数据。
