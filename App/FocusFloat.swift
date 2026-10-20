@@ -121,16 +121,24 @@ private struct FocusFloatView: View {
         HStack(spacing: 10) {
             Text(timer.isResting ? "☕️" : "🍅").font(.system(size: 26))
             VStack(alignment: .leading, spacing: 1) {
-                Text(timer.label)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(timer.isPaused ? Color.secondary : timer.isResting ? Color.green : Color.primary)
+                HStack(spacing: 5) {
+                    Text(timer.label)
+                        .font(.system(size: 22, weight: .semibold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(timer.isPaused ? Color.secondary : timer.isResting ? Color.green : Color.primary)
+                    if timer.isPaused {
+                        Image(systemName: "pause.circle.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.orange)
+                            .help(L("已暂停"))
+                    }
+                }
                 Button {
                     NSApp.activate(ignoringOtherApps: true)
                     if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain && !($0 is NSPanel) }) {
                         FocusFloat.openMainWindow?()
                     }
                 } label: {
-                    Text("\(timer.isPaused ? L("已暂停") : timer.phaseLabel) · \(timer.taskTitle)")
+                    Text(timer.taskTitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
