@@ -237,9 +237,23 @@ private struct FocusSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L("专注设置")).scaledFont(.headline)
-            Stepper(value: $focusMinutes, in: 1...180) { Text(L("专注 \(focusMinutes) 分钟")) }
-            Stepper(value: $restMinutes, in: 1...60) { Text(L("休息 \(restMinutes) 分钟")) }
-            Stepper(value: $rounds, in: 1...12) { Text(L("循环 \(rounds) 轮")) }
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 10) {
+                GridRow {
+                    Text(L("专注"))
+                    NumberField(value: $focusMinutes, range: 1...180)
+                    Text(L("分钟"))
+                }
+                GridRow {
+                    Text(L("休息"))
+                    NumberField(value: $restMinutes, range: 1...60)
+                    Text(L("分钟"))
+                }
+                GridRow {
+                    Text(L("循环"))
+                    NumberField(value: $rounds, range: 1...12)
+                    Text(L("轮"))
+                }
+            }
             Text(rounds > 1
                  ? L("专注 \(focusMinutes) 分钟 → 休息 \(restMinutes) 分钟 → … 共 \(rounds) 轮，总共专注 \(focusMinutes * rounds) 分钟。")
                  : L("专注一次 \(focusMinutes) 分钟。"))

@@ -671,5 +671,9 @@ enum English {
         "设定具体几点几分（到点通知；不设就是当天早上 9 点通知）": "Set a time of day (notified then; without one, at 9:00 that day)",
         "📌 截止时间到了": "📌 Deadline reached",
         "📌 子任务到时间了": "📌 Subtask time reached",
+        "专注": "Focus",
+        "休息": "Break",
+        "循环": "Rounds",
+        "轮": "rounds",
     ]
 }

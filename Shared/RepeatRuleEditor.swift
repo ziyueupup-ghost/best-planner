@@ -9,10 +9,8 @@ struct RepeatRuleEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Text(L("每|repeat-every"))
-                Stepper(value: $rule.interval, in: 1...99) {
-                    Text("\(rule.interval)").monospacedDigit().frame(minWidth: 22)
-                }
-                .fixedSize()
+                NumberField(value: $rule.interval, range: 1...99)
+                    .fixedSize()
                 Picker("", selection: $rule.unit) {
                     ForEach(RepeatRule.Unit.allCases) { Text($0.title).tag($0) }
                 }
