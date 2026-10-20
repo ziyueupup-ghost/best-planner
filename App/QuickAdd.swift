@@ -180,13 +180,18 @@ final class GlobalHotKey {
 /// The menu bar icon, or the focus countdown while a focus session runs.
 struct MenuBarLabel: View {
     @ObservedObject private var timer = FocusTimer.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        if timer.isRunning {
-            Text("\(timer.isResting ? "☕️" : "🍅") \(timer.label)").monospacedDigit()
-        } else {
-            Image(systemName: "checklist")
+        Group {
+            if timer.isRunning {
+                Text("\(timer.isResting ? "☕️" : "🍅") \(timer.label)").monospacedDigit()
+            } else {
+                Image(systemName: "checklist")
+            }
         }
+        // The menu bar label exists from launch: let the floating timer reopen the window.
+        .onAppear { FocusFloat.openMainWindow = { openWindow(id: "main") } }
     }
 }
 
@@ -247,6 +252,7 @@ private struct FocusMenuSection: View {
             Text("\(timer.isResting ? "☕️" : "🍅") \(timer.taskTitle) · \(timer.phaseLabel) · \(timer.label)\(timer.isPaused ? L("（已暂停）") : "")")
             Button(timer.isPaused ? L("继续专注") : L("暂停专注")) { timer.togglePause() }
             if timer.isResting { Button(L("跳过休息，开始下一轮")) { timer.skipRest() } }
+            Button(L("显示番茄浮窗")) { FocusFloat.shared.showAgain() }
             Button(L("结束专注")) { timer.stop() }
         }
     }

@@ -675,5 +675,9 @@ enum English {
         "休息": "Break",
         "循环": "Rounds",
         "轮": "rounds",
+        "回到 Best Planner": "Back to Best Planner",
+        "收起浮窗（菜单栏的番茄菜单里可以再打开）": "Hide (show it again from the 🍅 menu bar menu)",
+        "显示番茄浮窗": "Show Floating Timer",
+        "按住拖动可以移到任意位置": "Drag to move it anywhere",
     ]
 }

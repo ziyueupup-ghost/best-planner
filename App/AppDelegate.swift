@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
             GlobalHotKey.shared.register()
+            FocusFloat.shared.start()
             Updater.checkOnLaunch()
             WidgetRefresher.afterUpdate()
         }
