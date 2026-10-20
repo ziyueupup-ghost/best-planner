@@ -108,7 +108,7 @@ private struct AgendaRow: View {
             Spacer()
             if let d = dateInfo {
                 let overdue = board.isOverdue(d, of: task)
-                Label(d.kind == .reminder ? d.date.formatted(.dateTime.month().day().hour().minute())
+                Label(d.showsTime ? d.date.formatted(.dateTime.month().day().hour().minute())
                                           : d.date.formatted(.dateTime.month().day()),
                       systemImage: d.kind.symbol)
                     .scaledFont(.caption)

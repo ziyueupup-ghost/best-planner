@@ -86,15 +86,15 @@ extension Board {
                     let justAdded = t.history.last.map {
                         $0.field == "date-added-\(d.id)" && Date().timeIntervalSince($0.date) < 120
                     } ?? false
-                    let text = justAdded ? L("添加\(d.kind.title)日期 \(d.date.dayLabel)") : L("\(d.kind.title)日期改为 \(d.date.dayLabel)")
+                    let text = justAdded ? L("添加\(d.kind.title)日期 \(d.showsTime ? d.date.dayTimeLabel : d.date.dayLabel)") : L("\(d.kind.title)日期改为 \(d.showsTime ? d.date.dayTimeLabel : d.date.dayLabel)")
                     Board.appendHistory(&t, HistoryEntry(kind: .date, text: text, field: justAdded ? "date-added-\(d.id)" : "date-\(d.id)"))
                 }
             } else {
-                Board.appendHistory(&t, HistoryEntry(kind: .date, text: L("添加\(d.kind.title)日期 \(d.date.dayLabel)"), field: "date-added-\(d.id)"))
+                Board.appendHistory(&t, HistoryEntry(kind: .date, text: L("添加\(d.kind.title)日期 \(d.showsTime ? d.date.dayTimeLabel : d.date.dayLabel)"), field: "date-added-\(d.id)"))
             }
         }
         for d in old.dates where !newDateIDs.contains(d.id) {
-            Board.appendHistory(&t, HistoryEntry(kind: .date, text: L("删除\(d.kind.title)日期 \(d.date.dayLabel)")))
+            Board.appendHistory(&t, HistoryEntry(kind: .date, text: L("删除\(d.kind.title)日期 \(d.showsTime ? d.date.dayTimeLabel : d.date.dayLabel)")))
         }
     }
 

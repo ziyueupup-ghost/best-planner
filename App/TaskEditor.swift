@@ -190,8 +190,13 @@ struct TaskEditor: View {
                         .labelsHidden()
                         .frame(width: 90)
                         DatePicker("", selection: $d.date,
-                                   displayedComponents: d.kind == .reminder ? [.date, .hourAndMinute] : [.date])
+                                   displayedComponents: d.showsTime ? [.date, .hourAndMinute] : [.date])
                             .labelsHidden()
+                        if d.kind != .reminder {
+                            Toggle(L("时间"), isOn: $d.hasTime)
+                                .toggleStyle(.checkbox)
+                                .help(L("设定具体几点几分（到点通知；不设就是当天早上 9 点通知）"))
+                        }
                         Spacer()
                         Button {
                             task.dates.removeAll { $0.id == d.id }
@@ -259,7 +264,7 @@ struct TaskEditor: View {
                     TextField("", text: $sub.title)
                         .labelsHidden()
                         .strikethrough(sub.isDone)
-                    SubtaskDateButton(date: $sub.date, isDone: sub.isDone)
+                    SubtaskDateButton(date: $sub.date, hasTime: $sub.hasTime, isDone: sub.isDone)
                     Button {
                         task.subtasks.removeAll { $0.id == sub.id }
                     } label: {

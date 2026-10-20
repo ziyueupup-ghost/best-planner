@@ -24,10 +24,11 @@ extension PlannerTask {
         r.tagIDs = mergeIDs(base: base.tagIDs, mine: mine.tagIDs, theirs: theirs.tagIDs)
         r.subtasks = mergeList(base: base.subtasks, mine: mine.subtasks, theirs: theirs.subtasks) { b, m, t in
             Subtask(id: t.id, title: pick(b.title, m.title, t.title), isDone: pick(b.isDone, m.isDone, t.isDone),
-                    date: pick(b.date, m.date, t.date))
+                    date: pick(b.date, m.date, t.date), hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
         }
         r.dates = mergeList(base: base.dates, mine: mine.dates, theirs: theirs.dates) { b, m, t in
-            TaskDate(id: t.id, kind: pick(b.kind, m.kind, t.kind), date: pick(b.date, m.date, t.date), note: pick(b.note, m.note, t.note))
+            TaskDate(id: t.id, kind: pick(b.kind, m.kind, t.kind), date: pick(b.date, m.date, t.date), note: pick(b.note, m.note, t.note),
+                     hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
         }
         r.links = mergeList(base: base.links, mine: mine.links, theirs: theirs.links) { b, m, t in
             TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url))

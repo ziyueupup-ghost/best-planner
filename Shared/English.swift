@@ -667,5 +667,9 @@ enum English {
         "专注 {} 分钟 → 休息 {} 分钟 → … 共 {} 轮，总共专注 {} 分钟。": "Focus {0} min → break {1} min → … {2} rounds, {3} minutes of focus in all.",
         "专注一次 {} 分钟。": "One focus period of {} minutes.",
         "📌 子任务今天到期": "📌 Subtask due today",
+        "具体时间": "Time of day",
+        "设定具体几点几分（到点通知；不设就是当天早上 9 点通知）": "Set a time of day (notified then; without one, at 9:00 that day)",
+        "📌 截止时间到了": "📌 Deadline reached",
+        "📌 子任务到时间了": "📌 Subtask time reached",
     ]
 }

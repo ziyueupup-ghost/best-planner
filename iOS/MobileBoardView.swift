@@ -258,7 +258,7 @@ struct MobileTaskRow: View {
                             ForEach(tags) { TagChip(tag: $0).environment(\.fontScale, MobileStyle.tagScale) }
                             ForEach(task.dates.sorted { $0.date < $1.date }) { d in
                                 let overdue = board.isOverdue(d, of: task)
-                                Label(d.date.shortLabel, systemImage: d.kind.symbol)
+                                Label(d.label, systemImage: d.kind.symbol)
                                     .font(.subheadline)
                                     .foregroundStyle(overdue ? .red : d.kind.color)
                             }
@@ -312,8 +312,8 @@ struct MobileTaskRow: View {
                                 .strikethrough(sub.isDone, color: .secondary)
                                 .foregroundStyle(sub.isDone ? .secondary : .primary)
                                 .multilineTextAlignment(.leading)
-                            if let date = sub.date {
-                                Text(date.shortLabel)
+                            if let label = sub.dateLabel {
+                                Text(label)
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
                             }

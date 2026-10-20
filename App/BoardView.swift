@@ -967,8 +967,8 @@ struct TaskCard: View {
                                 .foregroundStyle(sub.isDone ? .secondary : .primary)
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
-                            if let date = sub.date {
-                                Text(date.shortLabel)
+                            if let label = sub.dateLabel {
+                                Text(label)
                                     .scaledFont(.caption2, monospacedDigit: true)
                                     .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
                             }
@@ -1006,7 +1006,7 @@ struct DateLine: View {
                 .foregroundStyle(overdue ? .red : date.kind.color)
             Text(date.kind.title)
                 .foregroundStyle(.secondary)
-            Text(date.kind == .reminder
+            Text(date.showsTime
                  ? date.date.formatted(.dateTime.month(.defaultDigits).day().hour().minute())
                  : date.date.formatted(.dateTime.year(.twoDigits).month(.defaultDigits).day()))
                 .foregroundStyle(overdue ? .red : .primary)

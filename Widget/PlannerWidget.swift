@@ -236,7 +236,7 @@ struct PlannerWidgetView: View {
                 let overdue = board.isOverdue(d, of: task)
                 HStack(spacing: 1) {
                     Image(systemName: d.kind.symbol)
-                    Text(d.date.shortLabel)
+                    Text(d.label)
                 }
                 .font(.caption2)
                 .foregroundStyle(overdue ? .red : d.kind.color)
@@ -258,8 +258,8 @@ struct PlannerWidgetView: View {
                 .strikethrough(sub.isDone)
                 .foregroundStyle(sub.isDone ? .tertiary : .secondary)
             Spacer(minLength: 0)
-            if let date = sub.date {
-                Text(date.shortLabel)
+            if let label = sub.dateLabel {
+                Text(label)
                     .font(.system(size: 9).monospacedDigit())
                     .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
             }

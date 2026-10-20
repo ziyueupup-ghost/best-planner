@@ -147,7 +147,7 @@ struct MobileTaskEditor: View {
                     TextField(L("子任务"), text: $sub.title, axis: .vertical)
                         .strikethrough(sub.isDone, color: .secondary)
                         .foregroundStyle(sub.isDone ? .secondary : .primary)
-                    SubtaskDateButton(date: $sub.date, isDone: sub.isDone)
+                    SubtaskDateButton(date: $sub.date, hasTime: $sub.hasTime, isDone: sub.isDone)
                 }
             }
             .onDelete { task.subtasks.remove(atOffsets: $0) }
@@ -188,8 +188,11 @@ struct MobileTaskEditor: View {
                     } label: {
                         Label(d.kind.title, systemImage: d.kind.symbol).foregroundStyle(d.kind.color)
                     }
+                    if d.kind != .reminder {
+                        Toggle(L("具体时间"), isOn: $d.hasTime)
+                    }
                     DatePicker(L("时间"), selection: $d.date,
-                               displayedComponents: d.kind == .reminder ? [.date, .hourAndMinute] : [.date])
+                               displayedComponents: d.showsTime ? [.date, .hourAndMinute] : [.date])
                 }
             }
             .onDelete { task.dates.remove(atOffsets: $0) }

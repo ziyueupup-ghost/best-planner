@@ -133,6 +133,24 @@ struct TaskDate: Codable, Identifiable, Hashable {
     var kind: DateKind
     var date: Date
     var note: String = ""
+    /// A time of day was chosen (reminders always have one).
+    var hasTime = false
+
+    var showsTime: Bool { kind == .reminder || hasTime }
+    /// "22/10" or "22/10 15:30".
+    var label: String { showsTime ? date.shortTimeLabel : date.shortLabel }
+}
+
+extension TaskDate {
+    // Tolerant decoding (in an extension so the memberwise initializer stays).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        kind = (try? c.decodeIfPresent(DateKind.self, forKey: .kind)) ?? .deadline
+        date = try c.decode(Date.self, forKey: .date)
+        note = (try? c.decodeIfPresent(String.self, forKey: .note)) ?? ""
+        hasTime = (try? c.decodeIfPresent(Bool.self, forKey: .hasTime)) ?? false
+    }
 }
 
 enum HistoryKind: String, Codable {
@@ -238,15 +256,20 @@ struct Subtask: Codable, Identifiable, Hashable {
     var id: String = UUID().uuidString
     var title: String
     var isDone: Bool = false
-    /// Optional due day.
+    /// Optional due day (and time, when `hasTime`).
     var date: Date?
+    var hasTime = false
 
-    init(id: String = UUID().uuidString, title: String, isDone: Bool = false, date: Date? = nil) {
+    init(id: String = UUID().uuidString, title: String, isDone: Bool = false, date: Date? = nil, hasTime: Bool = false) {
         self.id = id
         self.title = title
         self.isDone = isDone
         self.date = date
+        self.hasTime = hasTime
     }
+
+    /// "22/10" or "22/10 15:30".
+    var dateLabel: String? { date.map { hasTime ? $0.shortTimeLabel : $0.shortLabel } }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -254,12 +277,13 @@ struct Subtask: Codable, Identifiable, Hashable {
         title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
         isDone = (try? c.decodeIfPresent(Bool.self, forKey: .isDone)) ?? false
         date = try? c.decodeIfPresent(Date.self, forKey: .date)
+        hasTime = (try? c.decodeIfPresent(Bool.self, forKey: .hasTime)) ?? false
     }
 
-    /// Due before today and not ticked.
+    /// Past its time (or, without one, before today) and not ticked.
     var isOverdue: Bool {
         guard let date, !isDone else { return false }
-        return date < Calendar.current.startOfDay(for: Date())
+        return hasTime ? date < Date() : date < Calendar.current.startOfDay(for: Date())
     }
 }
 
@@ -458,7 +482,8 @@ struct Board: Codable, Equatable {
     func isDone(_ task: PlannerTask) -> Bool { column(task.columnID)?.isDone ?? false }
 
     func isOverdue(_ date: TaskDate, of task: PlannerTask) -> Bool {
-        date.kind == .deadline && !isDone(task) && date.date < Calendar.current.startOfDay(for: Date())
+        date.kind == .deadline && !isDone(task)
+            && (date.hasTime ? date.date < Date() : date.date < Calendar.current.startOfDay(for: Date()))
     }
 
     func accentColor(of task: PlannerTask) -> Color {
@@ -878,6 +903,7 @@ extension Color {
 
 extension Date {
     var shortLabel: String { formatted(.dateTime.month(.defaultDigits).day()) }
+    var shortTimeLabel: String { formatted(.dateTime.month(.defaultDigits).day().hour().minute()) }
     var dayLabel: String { formatted(.dateTime.year().month().day()) }
     var dayTimeLabel: String { formatted(.dateTime.year().month().day().hour().minute()) }
 }

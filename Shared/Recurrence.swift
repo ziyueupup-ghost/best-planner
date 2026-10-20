@@ -182,10 +182,10 @@ extension Board {
             t.recurrence = original.recurrence
             t.repeatRule = original.repeatRule
             t.subtasks = original.subtasks.map { s in
-                Subtask(title: s.title, date: s.date.map(move))
+                Subtask(title: s.title, date: s.date.map(move), hasTime: s.hasTime)
             }
             t.dates = original.dates.map { d in
-                TaskDate(kind: d.kind, date: move(d.date), note: d.note)
+                TaskDate(kind: d.kind, date: move(d.date), note: d.note, hasTime: d.hasTime)
             }
             t.order = topOrder(in: target.id)
             record(from: nil, to: &t, oldColumns: columns)

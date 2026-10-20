@@ -39,8 +39,8 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
                     fire = d.date
                     content.title = L("⏰ 提醒")
                 case .deadline:
-                    fire = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: d.date) ?? d.date
-                    content.title = L("📌 今天截止")
+                    fire = d.hasTime ? d.date : Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: d.date) ?? d.date
+                    content.title = d.hasTime ? L("📌 截止时间到了") : L("📌 今天截止")
                 default:
                     continue
                 }
@@ -53,9 +53,10 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
             // Dated subtasks: 9:00 on the day.
             for s in task.subtasks where !s.isDone {
                 guard let day = s.date,
-                      let fire = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: day), fire > now else { continue }
+                      let fire = s.hasTime ? day : Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: day),
+                      fire > now else { continue }
                 let content = UNMutableNotificationContent()
-                content.title = L("📌 子任务今天到期")
+                content.title = s.hasTime ? L("📌 子任务到时间了") : L("📌 子任务今天到期")
                 content.body = "\(task.title)：\(s.title)"
                 content.sound = .default
                 content.userInfo = ["taskID": task.id]
