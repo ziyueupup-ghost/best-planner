@@ -38,17 +38,17 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 ## Features
 
 - **Board** with your own statuses (name, emoji, color, order, width, “done column”), drag-and-drop and ← → buttons, manual or automatic sorting, search and tag filter
-- **Tasks**: notes, subtasks (reorderable), several dates (deadline / milestone / start / reminder), stripe and background colors, attachments and links, history
+- **Tasks**: notes, subtasks (reorderable, with an optional date and time), several dates (deadline / milestone / start / reminder, each with an optional time of day), stripe and background colors, attachments and links, history
 - **Tags**: emoji, 19 shapes, 8 styles, 7 border patterns, separate text / background / border colors, 18 color sets and 14 one-click looks
 - **Custom priorities** with names, colors and emoji
 - **Folding** per column: whole column, by tag, by priority or by date; reorder groups by dragging
 - **Subtask packs**: reusable subtask lists, added in one click or automatically with a tag
-- **Repeating tasks** (daily, weekdays, weekly, every 2 weeks, monthly, yearly)
+- **Repeating tasks** (daily, weekdays, weekly, every 2 weeks, monthly, yearly, or custom: every N days / weeks / months / years, on chosen weekdays such as Mon, Wed, Fri)
 - **Reminders** as macOS notifications (per-task on/off)
 - **Quick Add** from anywhere with **⌃⌥N** or the menu bar icon — understands `Send draft tomorrow 3pm #Work !urgent @Doing`
 - **Agenda** view: open tasks by date, across all statuses
 - **Review** view: a calendar of what you got done each day, daily notes, a streak counter and 18 achievements
-- **Focus timer** (pomodoro) and statistics
+- **Focus timer** (pomodoro) with your own lengths and focus/break cycles, and statistics
 - Multi-select, duplicate, undo / redo (⌘Z), Recently Deleted (kept 30 days), adjustable text size
 - **iCloud Drive sync** between Macs, daily backups (kept 30 days)
 - **Desktop widget** (small / medium / large) with subtasks you can tick right on the desktop; the **Widgets** toolbar button chooses which statuses and tags it shows (synced to the iPhone)
