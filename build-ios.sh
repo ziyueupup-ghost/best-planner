@@ -127,6 +127,13 @@ if [ "$MODE" = "sim" ]; then
   DEVICE="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -1)"
   if [ -z "$DEVICE" ]; then
     DEVICE="$(xcrun simctl list devices available | grep -E 'iPhone [0-9]+ Pro Max \(' | head -1 | sed -n 's/.*(\([0-9A-F-]\{36\}\)).*/\1/p')"
+    if [ -z "$DEVICE" ]; then
+      # None yet: make one on the newest iOS runtime that has a Pro Max.
+      TYPE="$(xcrun simctl list devicetypes | grep -E 'iPhone [0-9]+ Pro Max' | tail -1 | sed -n 's/.*(\(com\.apple[^)]*\)).*/\1/p')"
+      for RUNTIME in $(xcrun simctl list runtimes available | sed -n 's/.* - \(com\.apple\.CoreSimulator\.SimRuntime\.iOS[^ ]*\).*/\1/p' | sort -r); do
+        DEVICE="$(xcrun simctl create "iPhone Pro Max" "$TYPE" "$RUNTIME" 2>/dev/null)" && break
+      done
+    fi
     xcrun simctl boot "$DEVICE"
   fi
   xcrun simctl terminate "$DEVICE" "$APP_ID" 2>/dev/null || true
