@@ -46,8 +46,8 @@ extension Board {
         for link in old.links where !t.links.contains(where: { $0.id == link.id }) {
             Board.appendHistory(&t, HistoryEntry(kind: .note, text: L("移除附件「\(link.title)」")))
         }
-        if old.recurrence != t.recurrence {
-            Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("重复改为「\(t.recurrence.title)」"), field: "recurrence"))
+        if old.recurrence != t.recurrence || old.repeatRule != t.repeatRule {
+            Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("重复改为「\(t.repeatTitle)」"), field: "recurrence"))
         }
         if old.priorityID != t.priorityID {
             Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("优先级改为「\(priority(of: t).label)」"), field: "priority"))
@@ -124,6 +124,7 @@ extension Board {
         t.backgroundHex = original.backgroundHex
         t.links = original.links
         t.recurrence = original.recurrence
+        t.repeatRule = original.repeatRule
         t.dates = original.dates.map { d in
             var d = d
             d.id = UUID().uuidString

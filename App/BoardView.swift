@@ -811,7 +811,7 @@ struct TaskCard: View {
             }
 
             if task.recurrence != .none {
-                Label(task.recurrence.title, systemImage: "repeat")
+                Label(task.repeatTitle, systemImage: "repeat")
                     .scaledFont(.caption)
                     .foregroundStyle(.secondary)
                     .help(L("重复任务：完成后会自动生成下一次"))
@@ -895,7 +895,7 @@ struct TaskCard: View {
         .contextMenu {
             Button(L("编辑…"), action: onEdit)
             Button(isSelected ? L("取消选择") : L("选择（多选）")) { selection.toggle(task.id) }
-            FocusMenu(task: task)
+            FocusMenu(task: task, inContextMenu: true)
             OpenLinksMenu(links: task.links)
             Divider()
             Button(L("复制任务")) { duplicate(resetChecks: false) }
@@ -967,6 +967,11 @@ struct TaskCard: View {
                                 .foregroundStyle(sub.isDone ? .secondary : .primary)
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
+                            if let date = sub.date {
+                                Text(date.shortLabel)
+                                    .scaledFont(.caption2, monospacedDigit: true)
+                                    .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
+                            }
                         }
                         .contentShape(Rectangle())
                     }

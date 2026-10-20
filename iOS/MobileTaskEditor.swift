@@ -93,6 +93,12 @@ struct MobileTaskEditor: View {
             Picker(L("重复"), selection: $task.recurrence) {
                 ForEach(Recurrence.allCases) { r in Text(r.title).tag(r) }
             }
+            .onChange(of: task.recurrence) { _, value in
+                if value == .custom, task.repeatRule == nil { task.repeatRule = .starting(on: task.dates.map(\.date).min() ?? Date()) }
+            }
+            if task.recurrence == .custom {
+                RepeatRuleEditor(rule: Binding(get: { task.repeatRule ?? .starting() }, set: { task.repeatRule = $0 }))
+            }
         }
     }
 
@@ -141,6 +147,7 @@ struct MobileTaskEditor: View {
                     TextField(L("子任务"), text: $sub.title, axis: .vertical)
                         .strikethrough(sub.isDone, color: .secondary)
                         .foregroundStyle(sub.isDone ? .secondary : .primary)
+                    SubtaskDateButton(date: $sub.date, isDone: sub.isDone)
                 }
             }
             .onDelete { task.subtasks.remove(atOffsets: $0) }

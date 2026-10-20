@@ -50,6 +50,17 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
                 content.userInfo = ["taskID": task.id]
                 upcoming.append((fire, "task-\(task.id)-\(d.id)", content))
             }
+            // Dated subtasks: 9:00 on the day.
+            for s in task.subtasks where !s.isDone {
+                guard let day = s.date,
+                      let fire = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: day), fire > now else { continue }
+                let content = UNMutableNotificationContent()
+                content.title = L("📌 子任务今天到期")
+                content.body = "\(task.title)：\(s.title)"
+                content.sound = .default
+                content.userInfo = ["taskID": task.id]
+                upcoming.append((fire, "sub-\(task.id)-\(s.id)", content))
+            }
         }
         upcoming.sort { $0.date < $1.date }
         center.removeAllPendingNotificationRequests()

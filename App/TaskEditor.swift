@@ -133,6 +133,12 @@ struct TaskEditor: View {
                 Label(L("重复"), systemImage: "repeat")
             }
             .help(L("完成后自动生成下一次，日期按周期往后推"))
+            .onChange(of: task.recurrence) { _, value in
+                if value == .custom, task.repeatRule == nil { task.repeatRule = .starting(on: task.dates.map(\.date).min() ?? Date()) }
+            }
+            if task.recurrence == .custom {
+                RepeatRuleEditor(rule: Binding(get: { task.repeatRule ?? .starting() }, set: { task.repeatRule = $0 }))
+            }
             optionalColorRow(L("左侧色条颜色"), hex: $task.colorHex, fallback: Palette.colors[4], palette: Palette.colors)
             optionalColorRow(L("卡片背景颜色"), hex: $task.backgroundHex, fallback: "#FFF4D6", palette: Palette.pastel + Palette.colors)
         }
@@ -253,6 +259,7 @@ struct TaskEditor: View {
                     TextField("", text: $sub.title)
                         .labelsHidden()
                         .strikethrough(sub.isDone)
+                    SubtaskDateButton(date: $sub.date, isDone: sub.isDone)
                     Button {
                         task.subtasks.removeAll { $0.id == sub.id }
                     } label: {

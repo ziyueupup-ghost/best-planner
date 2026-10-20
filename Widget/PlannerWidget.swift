@@ -258,6 +258,11 @@ struct PlannerWidgetView: View {
                 .strikethrough(sub.isDone)
                 .foregroundStyle(sub.isDone ? .tertiary : .secondary)
             Spacer(minLength: 0)
+            if let date = sub.date {
+                Text(date.shortLabel)
+                    .font(.system(size: 9).monospacedDigit())
+                    .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
+            }
         }
         .padding(.leading, 16)
     }

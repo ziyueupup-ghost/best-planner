@@ -238,6 +238,29 @@ struct Subtask: Codable, Identifiable, Hashable {
     var id: String = UUID().uuidString
     var title: String
     var isDone: Bool = false
+    /// Optional due day.
+    var date: Date?
+
+    init(id: String = UUID().uuidString, title: String, isDone: Bool = false, date: Date? = nil) {
+        self.id = id
+        self.title = title
+        self.isDone = isDone
+        self.date = date
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        title = (try? c.decodeIfPresent(String.self, forKey: .title)) ?? ""
+        isDone = (try? c.decodeIfPresent(Bool.self, forKey: .isDone)) ?? false
+        date = try? c.decodeIfPresent(Date.self, forKey: .date)
+    }
+
+    /// Due before today and not ticked.
+    var isOverdue: Bool {
+        guard let date, !isDone else { return false }
+        return date < Calendar.current.startOfDay(for: Date())
+    }
 }
 
 struct PlannerTask: Codable, Identifiable, Hashable {
@@ -264,6 +287,8 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     /// Set while the task is in the trash (Board.trash).
     var deletedAt: Date?
     var recurrence: Recurrence = .none
+    /// The rule when `recurrence` is `.custom`.
+    var repeatRule: RepeatRule?
     /// The next occurrence has been created (so completing again doesn't make another).
     var recurrenceSpawned = false
     /// Attached files and web links.
@@ -300,6 +325,7 @@ struct PlannerTask: Codable, Identifiable, Hashable {
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         recurrence = (try? c.decodeIfPresent(Recurrence.self, forKey: .recurrence)) ?? .none
+        repeatRule = try? c.decodeIfPresent(RepeatRule.self, forKey: .repeatRule)
         recurrenceSpawned = try c.decodeIfPresent(Bool.self, forKey: .recurrenceSpawned) ?? false
         links = (try? c.decodeIfPresent([TaskLink].self, forKey: .links)) ?? []
         notificationsOff = try c.decodeIfPresent(Bool.self, forKey: .notificationsOff) ?? false

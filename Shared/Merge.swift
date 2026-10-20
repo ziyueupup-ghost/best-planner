@@ -19,10 +19,12 @@ extension PlannerTask {
         r.colorHex = pick(base.colorHex, mine.colorHex, theirs.colorHex)
         r.backgroundHex = pick(base.backgroundHex, mine.backgroundHex, theirs.backgroundHex)
         r.recurrence = pick(base.recurrence, mine.recurrence, theirs.recurrence)
+        r.repeatRule = pick(base.repeatRule, mine.repeatRule, theirs.repeatRule)
         r.notificationsOff = pick(base.notificationsOff, mine.notificationsOff, theirs.notificationsOff)
         r.tagIDs = mergeIDs(base: base.tagIDs, mine: mine.tagIDs, theirs: theirs.tagIDs)
         r.subtasks = mergeList(base: base.subtasks, mine: mine.subtasks, theirs: theirs.subtasks) { b, m, t in
-            Subtask(id: t.id, title: pick(b.title, m.title, t.title), isDone: pick(b.isDone, m.isDone, t.isDone))
+            Subtask(id: t.id, title: pick(b.title, m.title, t.title), isDone: pick(b.isDone, m.isDone, t.isDone),
+                    date: pick(b.date, m.date, t.date))
         }
         r.dates = mergeList(base: base.dates, mine: mine.dates, theirs: theirs.dates) { b, m, t in
             TaskDate(id: t.id, kind: pick(b.kind, m.kind, t.kind), date: pick(b.date, m.date, t.date), note: pick(b.note, m.note, t.note))
@@ -38,7 +40,7 @@ extension PlannerTask {
     func sameEditableContent(as other: PlannerTask) -> Bool {
         title == other.title && notes == other.notes && columnID == other.columnID && priorityID == other.priorityID
             && tagIDs == other.tagIDs && subtasks == other.subtasks && dates == other.dates && links == other.links
-            && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence
+            && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence && repeatRule == other.repeatRule
             && notificationsOff == other.notificationsOff
     }
 }

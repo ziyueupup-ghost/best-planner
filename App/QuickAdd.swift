@@ -183,7 +183,7 @@ struct MenuBarLabel: View {
 
     var body: some View {
         if timer.isRunning {
-            Text("🍅 \(timer.label)").monospacedDigit()
+            Text("\(timer.isResting ? "☕️" : "🍅") \(timer.label)").monospacedDigit()
         } else {
             Image(systemName: "checklist")
         }
@@ -244,8 +244,9 @@ private struct FocusMenuSection: View {
     var body: some View {
         if timer.isRunning {
             Divider()
-            Text("🍅 \(timer.taskTitle) · \(timer.label)\(timer.isPaused ? L("（已暂停）") : "")")
+            Text("\(timer.isResting ? "☕️" : "🍅") \(timer.taskTitle) · \(timer.phaseLabel) · \(timer.label)\(timer.isPaused ? L("（已暂停）") : "")")
             Button(timer.isPaused ? L("继续专注") : L("暂停专注")) { timer.togglePause() }
+            if timer.isResting { Button(L("跳过休息，开始下一轮")) { timer.skipRest() } }
             Button(L("结束专注")) { timer.stop() }
         }
     }

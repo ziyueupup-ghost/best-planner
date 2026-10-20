@@ -312,6 +312,11 @@ struct MobileTaskRow: View {
                                 .strikethrough(sub.isDone, color: .secondary)
                                 .foregroundStyle(sub.isDone ? .secondary : .primary)
                                 .multilineTextAlignment(.leading)
+                            if let date = sub.date {
+                                Text(date.shortLabel)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
+                            }
                         }
                     }
                     .buttonStyle(.borderless)
