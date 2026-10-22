@@ -56,6 +56,7 @@ final class FocusTimer: ObservableObject {
     /// `rounds` focus periods of `focus` minutes with `rest`-minute breaks in between.
     func start(_ task: PlannerTask, focus: Int, rest: Int, rounds: Int) {
         if isRunning { stop() }
+        FocusAlarm.shared.dismiss()
         taskID = task.id
         taskTitle = task.title
         focusMinutes = max(1, focus)
@@ -122,7 +123,7 @@ final class FocusTimer: ObservableObject {
         content.sound = .default
         if let taskID { content.userInfo = ["taskID": taskID] }
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "focus-\(UUID().uuidString)", content: content, trigger: nil))
-        NSSound.beep()
+        FocusAlarm.shared.ring(title: title, message: body)
     }
 
     private func reset() {
@@ -233,6 +234,8 @@ private struct FocusSettings: View {
     @Binding var restMinutes: Int
     @Binding var rounds: Int
     let done: () -> Void
+    @AppStorage(FocusAlarm.enabledKey) private var alarmOn = true
+    @AppStorage(FocusAlarm.soundKey) private var alarmSound = "Glass"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -253,6 +256,14 @@ private struct FocusSettings: View {
                     NumberField(value: $rounds, range: 1...12)
                     Text(L("轮"))
                 }
+            }
+            Divider()
+            Toggle(L("结束时响闹钟"), isOn: $alarmOn)
+            if alarmOn {
+                Picker(L("铃声"), selection: $alarmSound) {
+                    ForEach(FocusAlarm.sounds, id: \.self) { Text($0).tag($0) }
+                }
+                .onChange(of: alarmSound) { _, name in FocusAlarm.preview(name) }
             }
             Text(rounds > 1
                  ? L("专注 \(focusMinutes) 分钟 → 休息 \(restMinutes) 分钟 → … 共 \(rounds) 轮，总共专注 \(focusMinutes * rounds) 分钟。")

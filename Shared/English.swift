@@ -679,5 +679,8 @@ enum English {
         "收起浮窗（菜单栏的番茄菜单里可以再打开）": "Hide (show it again from the 🍅 menu bar menu)",
         "显示番茄浮窗": "Show Floating Timer",
         "按住拖动可以移到任意位置": "Drag to move it anywhere",
+        "知道了": "Got It",
+        "结束时响闹钟": "Ring an alarm at the end",
+        "铃声": "Sound",
     ]
 }
