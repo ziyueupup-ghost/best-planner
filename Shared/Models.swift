@@ -67,6 +67,56 @@ enum SortMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// A contact / collaborator. Kept on the board once used, so they can be picked again.
+struct Contact: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var name: String
+    var email: String = ""
+    var phone: String = ""
+
+    init(id: String = UUID().uuidString, name: String, email: String = "", phone: String = "") {
+        self.id = id
+        self.name = name
+        self.email = email
+        self.phone = phone
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        email = (try? c.decodeIfPresent(String.self, forKey: .email)) ?? ""
+        phone = (try? c.decodeIfPresent(String.self, forKey: .phone)) ?? ""
+    }
+}
+
+/// How a task is going ("顺利进行", "卡住了", "需要跟进"…). Users define the list;
+/// a task has at most one, shown on its card.
+struct ProgressFlag: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var name: String
+    var colorHex: String
+    var icon: String = ""
+
+    var color: Color { Color(hex: colorHex) }
+    var label: String { icon.isEmpty ? name : "\(icon) \(name)" }
+
+    init(id: String = UUID().uuidString, name: String, colorHex: String, icon: String = "") {
+        self.id = id
+        self.name = name
+        self.colorHex = colorHex
+        self.icon = icon
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? ""
+        colorHex = (try? c.decodeIfPresent(String.self, forKey: .colorHex)) ?? "#888888"
+        icon = (try? c.decodeIfPresent(String.self, forKey: .icon)) ?? ""
+    }
+}
+
 /// A priority level. Users can add, rename, recolor, reorder and give them emoji.
 /// Order in `Board.priorities` is the ranking: first is the most important.
 struct PriorityLevel: Codable, Identifiable, Hashable {
@@ -319,6 +369,10 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     var links: [TaskLink] = []
     /// Turns off reminder and deadline notifications for this task only.
     var notificationsOff = false
+    /// How it's going (ids in `Board.flags`); any number, or none.
+    var flagIDs: [String] = []
+    /// Contacts / collaborators on this task (ids in `Board.contacts`).
+    var contactIDs: [String] = []
     /// Finished focus (pomodoro) sessions.
     var focusSessions: [FocusSession] = []
 
@@ -353,6 +407,8 @@ struct PlannerTask: Codable, Identifiable, Hashable {
         recurrenceSpawned = try c.decodeIfPresent(Bool.self, forKey: .recurrenceSpawned) ?? false
         links = (try? c.decodeIfPresent([TaskLink].self, forKey: .links)) ?? []
         notificationsOff = try c.decodeIfPresent(Bool.self, forKey: .notificationsOff) ?? false
+        flagIDs = (try? c.decodeIfPresent([String].self, forKey: .flagIDs)) ?? []
+        contactIDs = (try? c.decodeIfPresent([String].self, forKey: .contactIDs)) ?? []
         focusSessions = (try? c.decodeIfPresent([FocusSession].self, forKey: .focusSessions)) ?? []
     }
 
@@ -386,6 +442,10 @@ struct Board: Codable, Equatable {
     var subtaskPacks: [SubtaskPack] = Board.defaultPacks
     /// 今日总结 written in 回顾, keyed "yyyy-MM-dd".
     var dayNotes: [String: String] = [:]
+    /// The progress flags users can put on tasks, in menu order.
+    var flags: [ProgressFlag] = Board.defaultFlags
+    /// Everyone ever added to a task (remembered for picking again).
+    var contacts: [Contact] = []
     /// Statuses the widgets show (empty: the widget's own default).
     var widgetColumnIDs: [String] = []
     /// Only tasks with one of these tags appear on the widgets (empty: all tasks).
@@ -410,6 +470,8 @@ struct Board: Codable, Equatable {
         trash = try c.decodeIfPresent([PlannerTask].self, forKey: .trash) ?? []
         subtaskPacks = try c.decodeIfPresent([SubtaskPack].self, forKey: .subtaskPacks) ?? Board.defaultPacks
         dayNotes = try c.decodeIfPresent([String: String].self, forKey: .dayNotes) ?? [:]
+        flags = (try? c.decodeIfPresent([ProgressFlag].self, forKey: .flags)) ?? Board.defaultFlags
+        contacts = (try? c.decodeIfPresent([Contact].self, forKey: .contacts)) ?? []
         widgetColumnIDs = (try? c.decodeIfPresent([String].self, forKey: .widgetColumnIDs)) ?? []
         widgetTagIDs = (try? c.decodeIfPresent([String].self, forKey: .widgetTagIDs)) ?? []
         if columns.isEmpty { columns = Board.defaultColumns }
@@ -447,6 +509,14 @@ struct Board: Codable, Equatable {
         PriorityLevel(id: "low", name: L("低"), colorHex: "#8D99AE", icon: "⬇️"),
     ]
 
+    static let defaultFlags: [ProgressFlag] = [
+        ProgressFlag(id: "on-track", name: L("顺利进行"), colorHex: "#40B873", icon: "🟢"),
+        ProgressFlag(id: "struggling", name: L("卡住了"), colorHex: "#E5534B", icon: "😣"),
+        ProgressFlag(id: "follow-up", name: L("需要跟进"), colorHex: "#F79E33", icon: "🔁"),
+        ProgressFlag(id: "need-info", name: L("需要更多信息"), colorHex: "#9B6CF0", icon: "❓"),
+        ProgressFlag(id: "waiting", name: L("等待中"), colorHex: "#8D99AE", icon: "⏳"),
+    ]
+
     /// Examples to start from; users can edit or delete them.
     static let defaultPacks: [SubtaskPack] = [
         SubtaskPack(name: L("写作流程"), icon: "📝", items: [L("列提纲"), L("写初稿"), L("修改"), L("校对"), L("定稿")]),
@@ -464,6 +534,25 @@ struct Board: Codable, Equatable {
     func column(_ id: String) -> BoardColumn? { columns.first { $0.id == id } }
 
     /// The task's priority level (falls back to the default if its level was deleted).
+    /// The task's progress flags, in the board's flag order (deleted ones skipped).
+    func flags(of task: PlannerTask) -> [ProgressFlag] {
+        flags.filter { task.flagIDs.contains($0.id) }
+    }
+
+    /// The task's contacts, in the order they were added to it.
+    func contacts(of task: PlannerTask) -> [Contact] {
+        task.contactIDs.compactMap { id in contacts.first { $0.id == id } }
+    }
+
+    func contact(_ id: String) -> Contact? { contacts.first { $0.id == id } }
+
+    /// Contacts, most used first (for picking).
+    var contactsByUse: [Contact] {
+        var count: [String: Int] = [:]
+        for t in tasks { for id in t.contactIDs { count[id, default: 0] += 1 } }
+        return contacts.sorted { (count[$0.id] ?? 0, $1.name) > (count[$1.id] ?? 0, $0.name) }
+    }
+
     func priority(of task: PlannerTask) -> PriorityLevel {
         priorities.first { $0.id == task.priorityID }
             ?? priorities.first { $0.id == defaultPriorityID }

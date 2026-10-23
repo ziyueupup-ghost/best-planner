@@ -36,6 +36,8 @@ struct TaskEditor: View {
             Form {
                 basicSection
                 tagSection
+                flagSection
+                ContactSection(contactIDs: $task.contactIDs)
                 dateSection
                 subtaskSection
                 LinksSection(links: $task.links)
@@ -173,6 +175,32 @@ struct TaskEditor: View {
                 Button(L("添加"), action: addTag)
                     .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+        }
+    }
+
+    /// How the task is going: any number of flags, or none.
+    private var flagSection: some View {
+        Section {
+            FlowLayout(spacing: 6) {
+                ForEach(store.board.flags) { f in
+                    let on = task.flagIDs.contains(f.id)
+                    Button {
+                        if on { task.flagIDs.removeAll { $0 == f.id } } else { task.flagIDs.append(f.id) }
+                    } label: {
+                        FlagChip(flag: f)
+                            .saturation(on ? 1 : 0)
+                            .opacity(on ? 1 : 0.45)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        } header: {
+            Text(L("进展"))
+        } footer: {
+            Text(L("可以选多个，也可以不选；会显示在卡片上。在设置 →「进展」里自定义。"))
+                .scaledFont(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

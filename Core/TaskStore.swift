@@ -249,6 +249,33 @@ final class BoardStore: ObservableObject {
         persist()
     }
 
+    /// The contact with this name (case-insensitive), adding one if there's none yet.
+    @discardableResult
+    func addContact(named name: String) -> Contact {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if let existing = board.contacts.first(where: { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return existing
+        }
+        let c = Contact(name: trimmed)
+        board.contacts.append(c)
+        persist()
+        return c
+    }
+
+    func updateContact(_ contact: Contact) {
+        guard let i = board.contacts.firstIndex(where: { $0.id == contact.id }), board.contacts[i] != contact else { return }
+        board.contacts[i] = contact
+        persist()
+    }
+
+    /// Turns a progress flag on or off for a task; nil clears them all.
+    func toggleFlag(_ taskID: String, _ flagID: String?) {
+        modify(taskID) { t in
+            guard let flagID else { t.flagIDs = []; return }
+            if let i = t.flagIDs.firstIndex(of: flagID) { t.flagIDs.remove(at: i) } else { t.flagIDs.append(flagID) }
+        }
+    }
+
     /// Turns a status or tag on or off for the widgets.
     func toggleWidgetColumn(_ id: String) {
         if let i = board.widgetColumnIDs.firstIndex(of: id) { board.widgetColumnIDs.remove(at: i) } else { board.widgetColumnIDs.append(id) }
@@ -545,7 +572,7 @@ final class BoardStore: ObservableObject {
     /// references to removed tags are dropped. Moves and completion changes caused by
     /// this (e.g. a column becoming a done column) are recorded in task history.
     func applySettings(columns: [BoardColumn], tags: [Tag], priorities: [PriorityLevel], defaultPriorityID: String,
-                       packs: [SubtaskPack]) {
+                       packs: [SubtaskPack], flags: [ProgressFlag], contacts: [Contact]) {
         guard let fallback = columns.first, !priorities.isEmpty else { return }
         let oldColumns = board.columns
         let columnIDs = Set(columns.map(\.id))
@@ -560,17 +587,25 @@ final class BoardStore: ObservableObject {
             return p
         }
         board.defaultPriorityID = priorityIDs.contains(defaultPriorityID) ? defaultPriorityID : priorities[0].id
+        board.flags = flags
+        board.contacts = contacts
+        let flagIDs = Set(flags.map(\.id))
+        let contactIDs = Set(contacts.map(\.id))
         for i in board.tasks.indices {
             let old = board.tasks[i]
             var t = old
             if !columnIDs.contains(t.columnID) { t.columnID = fallback.id }
             if !priorityIDs.contains(t.priorityID) { t.priorityID = board.defaultPriorityID }
             t.tagIDs.removeAll { !tagIDs.contains($0) }
+            t.flagIDs.removeAll { !flagIDs.contains($0) }
+            t.contactIDs.removeAll { !contactIDs.contains($0) }
             let wasDone = oldColumns.first { $0.id == old.columnID }?.isDone ?? false
             if t != old || wasDone != board.isDone(t) {
                 // Tag removals here come from deleting the tag itself; don't log those.
                 var logged = old
                 logged.tagIDs = t.tagIDs
+                logged.flagIDs = t.flagIDs
+                logged.contactIDs = t.contactIDs
                 board.record(from: logged, to: &t, oldColumns: oldColumns)
                 board.tasks[i] = t
             }

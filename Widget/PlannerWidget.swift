@@ -209,6 +209,7 @@ struct PlannerWidgetView: View {
                     .fill(board.accentColor(of: task))
                     .frame(width: 3, height: 11)
             }
+            ForEach(board.flags(of: task)) { FlagChip(flag: $0, compact: true) }
             Text(task.title)
                 .font(.caption)
                 .lineLimit(1)

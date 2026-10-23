@@ -52,6 +52,18 @@ extension Board {
         if old.priorityID != t.priorityID {
             Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("优先级改为「\(priority(of: t).label)」"), field: "priority"))
         }
+        for f in flags where t.flagIDs.contains(f.id) && !old.flagIDs.contains(f.id) {
+            Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("标记进展「\(f.label)」")))
+        }
+        for f in flags where old.flagIDs.contains(f.id) && !t.flagIDs.contains(f.id) {
+            Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("取消进展「\(f.label)」")))
+        }
+        for id in t.contactIDs where !old.contactIDs.contains(id) {
+            Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("添加联系人「\(contact(id)?.name ?? "")」")))
+        }
+        for id in old.contactIDs where !t.contactIDs.contains(id) {
+            Board.appendHistory(&t, HistoryEntry(kind: .edited, text: L("移除联系人「\(contact(id)?.name ?? "")」")))
+        }
 
         for id in t.tagIDs where !old.tagIDs.contains(id) {
             Board.appendHistory(&t, HistoryEntry(kind: .tag, text: L("添加标签「\(tag(id)?.name ?? "")」")))
@@ -125,6 +137,8 @@ extension Board {
         t.links = original.links
         t.recurrence = original.recurrence
         t.repeatRule = original.repeatRule
+        t.flagIDs = original.flagIDs
+        t.contactIDs = original.contactIDs
         t.dates = original.dates.map { d in
             var d = d
             d.id = UUID().uuidString

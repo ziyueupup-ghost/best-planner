@@ -199,7 +199,7 @@ struct BoardView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(columns: store.columns, tags: store.tags,
                          priorities: store.board.priorities, defaultPriorityID: store.board.defaultPriorityID,
-                         packs: store.board.subtaskPacks)
+                         packs: store.board.subtaskPacks, flags: store.board.flags, contacts: store.board.contacts)
                 .environmentObject(store)
                 .appFontSize()
         }
@@ -459,6 +459,10 @@ struct BoardView: View {
                     || task.notes.localizedCaseInsensitiveContains(q)
                     || task.subtasks.contains { $0.title.localizedCaseInsensitiveContains(q) }
                     || store.board.tags(for: task).contains { $0.name.localizedCaseInsensitiveContains(q) }
+                    || store.board.flags(of: task).contains { $0.name.localizedCaseInsensitiveContains(q) }
+                    || store.board.contacts(of: task).contains {
+                        $0.name.localizedCaseInsensitiveContains(q) || $0.email.localizedCaseInsensitiveContains(q)
+                    }
             }
         }
         return result
@@ -773,10 +777,19 @@ struct TaskCard: View {
             }
 
             let tags = board.tags(for: task)
-            if !tags.isEmpty {
+            let flags = board.flags(of: task)
+            if !tags.isEmpty || !flags.isEmpty {
                 FlowLayout(spacing: 4) {
+                    ForEach(flags) { FlagChip(flag: $0) }
                     ForEach(tags) { TagChip(tag: $0, small: true) }
                 }
+            }
+            let people = board.contacts(of: task)
+            if !people.isEmpty {
+                Label(people.map(\.name).joined(separator: L("、|list")), systemImage: "person.2")
+                    .scaledFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
 
             if !task.dates.isEmpty {
@@ -896,6 +909,19 @@ struct TaskCard: View {
             Button(L("编辑…"), action: onEdit)
             Button(isSelected ? L("取消选择") : L("选择（多选）")) { selection.toggle(task.id) }
             FocusMenu(task: task, inContextMenu: true)
+            Menu(L("进展")) {
+                ForEach(board.flags) { f in
+                    Button {
+                        store.toggleFlag(task.id, f.id)
+                    } label: {
+                        if task.flagIDs.contains(f.id) { Label(f.label, systemImage: "checkmark") } else { Text(f.label) }
+                    }
+                }
+                if !task.flagIDs.isEmpty {
+                    Divider()
+                    Button(L("清除进展标记")) { store.toggleFlag(task.id, nil) }
+                }
+            }
             OpenLinksMenu(links: task.links)
             Divider()
             Button(L("复制任务")) { duplicate(resetChecks: false) }

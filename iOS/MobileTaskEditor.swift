@@ -90,6 +90,15 @@ struct MobileTaskEditor: View {
             Picker(L("优先级"), selection: $task.priorityID) {
                 ForEach(board.priorities) { p in Text(p.label).tag(p.id) }
             }
+            FlowLayout(spacing: 6) {
+                ForEach(board.flags) { f in
+                    let on = task.flagIDs.contains(f.id)
+                    Button {
+                        if on { task.flagIDs.removeAll { $0 == f.id } } else { task.flagIDs.append(f.id) }
+                    } label: { FlagChip(flag: f).opacity(on ? 1 : 0.35) }
+                    .buttonStyle(.borderless)
+                }
+            }
             Picker(L("重复"), selection: $task.recurrence) {
                 ForEach(Recurrence.allCases) { r in Text(r.title).tag(r) }
             }

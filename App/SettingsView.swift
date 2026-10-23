@@ -14,13 +14,17 @@ struct SettingsView: View {
     @State private var priorities: [PriorityLevel]
     @State private var defaultPriorityID: String
     @State private var packs: [SubtaskPack]
+    @State private var flags: [ProgressFlag]
+    @State private var contacts: [Contact]
     @State private var tab = 0
     @State private var expandedTag: String?
     @State private var expandedPack: String?
 
     init(columns: [BoardColumn], tags: [Tag], priorities: [PriorityLevel], defaultPriorityID: String,
-         packs: [SubtaskPack]) {
+         packs: [SubtaskPack], flags: [ProgressFlag], contacts: [Contact]) {
+        _contacts = State(initialValue: contacts)
         _packs = State(initialValue: packs)
+        _flags = State(initialValue: flags)
         _columns = State(initialValue: columns)
         _tags = State(initialValue: tags)
         _priorities = State(initialValue: priorities)
@@ -34,10 +38,12 @@ struct SettingsView: View {
                 Text(L("标签")).tag(1)
                 Text(L("优先级")).tag(2)
                 Text(L("子任务包")).tag(3)
+                Text(L("进展")).tag(4)
+                Text(L("联系人")).tag(5)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 400)
+            .frame(width: 560)
             .padding(.top, 20)
 
             ScrollView {
@@ -51,6 +57,21 @@ struct SettingsView: View {
                         ForEach($tags) { $t in
                             tagRow($t)
                                 .background(stripe(tags.firstIndex { $0.id == t.id }))
+                        }
+                    } else if tab == 5 {
+                        if contacts.isEmpty {
+                            Text(L("还没有联系人。在任务的「联系人 / 合作人」里输入名字就会记到这里。"))
+                                .foregroundStyle(.secondary)
+                                .padding(20)
+                        }
+                        ForEach($contacts) { $c in
+                            contactRow($c)
+                                .background(stripe(contacts.firstIndex { $0.id == c.id }))
+                        }
+                    } else if tab == 4 {
+                        ForEach($flags) { $f in
+                            flagRow($f)
+                                .background(stripe(flags.firstIndex { $0.id == f.id }))
                         }
                     } else if tab == 2 {
                         ForEach($priorities) { $p in
@@ -77,6 +98,10 @@ struct SettingsView: View {
                  ? L("点名称直接修改；左边可以选一个图标。删除状态时，里面的任务会移到第一列。")
                  : tab == 1
                  ? L("点名称直接修改；点「样式」可以设置图案、形状和各部分颜色。删除标签只会把它从任务上移除。")
+                 : tab == 5
+                 ? L("在任务里用过的联系人都会记在这里，之后在任务里可以直接点选。删除联系人会把他从所有任务上移除。")
+                 : tab == 4
+                 ? L("给任务标记进展（比如顺利进行、卡住了、需要跟进），会显示在卡片上。在编辑窗口里选，或者右键卡片 →「进展」。删除一个标记，用它的任务会变成没有标记。")
                  : tab == 3
                  ? L("在任务的「子任务」里点「应用子任务包」就能一次加入。加入后是这个任务自己的副本，随便改不影响别的任务。关联了标签的包，给任务加上那个标签时会自动加入。")
                  : L("排在越上面越重要（排序和折叠都按这个顺序）。设了 emoji 的优先级，卡片上显示 emoji，否则显示彩色圆点。删除优先级时，那些任务改成默认优先级。"))
@@ -93,6 +118,10 @@ struct SettingsView: View {
                         let pack = SubtaskPack(name: L("新子任务包"), icon: "📦", items: [])
                         packs.append(pack)
                         expandedPack = pack.id
+                    } else if tab == 5 {
+                        contacts.append(Contact(name: L("新联系人")))
+                    } else if tab == 4 {
+                        flags.append(ProgressFlag(name: L("新标记"), colorHex: Palette.next(after: flags.map(\.colorHex)), icon: "📍"))
                     } else if tab == 2 {
                         priorities.append(PriorityLevel(name: L("新优先级"), colorHex: Palette.next(after: priorities.map(\.colorHex)), icon: "⭐️"))
                     } else {
@@ -101,7 +130,7 @@ struct SettingsView: View {
                         expandedTag = tag.id
                     }
                 } label: {
-                    Label([L("添加状态"), L("添加标签"), L("添加优先级"), L("添加子任务包")][tab], systemImage: "plus")
+                    Label([L("添加状态"), L("添加标签"), L("添加优先级"), L("添加子任务包"), L("添加进展标记"), L("添加联系人")][tab], systemImage: "plus")
                 }
                 Spacer()
                 Label(L("已自动保存"), systemImage: "checkmark.circle.fill")
@@ -119,6 +148,8 @@ struct SettingsView: View {
         .onChange(of: priorities) { _, _ in apply() }
         .onChange(of: defaultPriorityID) { _, _ in apply() }
         .onChange(of: packs) { _, _ in apply() }
+        .onChange(of: flags) { _, _ in apply() }
+        .onChange(of: contacts) { _, _ in apply() }
         .onExitCommand { dismiss() }
     }
 
@@ -234,6 +265,64 @@ struct SettingsView: View {
         .padding(.vertical, 7)
     }
 
+    // MARK: Progress flag rows
+
+    private func flagRow(_ f: Binding<ProgressFlag>) -> some View {
+        let id = f.wrappedValue.id
+        let i = flags.firstIndex { $0.id == id } ?? 0
+        return HStack(spacing: 10) {
+            ReorderButtons(index: i, count: flags.count) { flags.swapAt(i, $0) }
+            IconPicker(icon: f.icon)
+            ColorSwatchPicker(hex: f.colorHex)
+            TextField(L("名称"), text: f.name)
+                .textFieldStyle(.roundedBorder)
+            FlagChip(flag: f.wrappedValue)
+            Text(L("\(store.tasks.filter { $0.flagIDs.contains(id) }.count) 项"))
+                .scaledFont(.caption, monospacedDigit: true)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .trailing)
+            Button {
+                flags.removeAll { $0.id == id }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help(L("删除这个进展标记（用它的任务会变成没有标记）"))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+    }
+
+    // MARK: Contact rows
+
+    private func contactRow(_ c: Binding<Contact>) -> some View {
+        let id = c.wrappedValue.id
+        return HStack(spacing: 10) {
+            Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+            TextField(L("名字"), text: c.name)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 140)
+            TextField(L("邮箱"), text: c.email)
+                .textFieldStyle(.roundedBorder)
+            TextField(L("电话"), text: c.phone)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 130)
+            Text(L("\(store.tasks.filter { $0.contactIDs.contains(id) }.count) 项"))
+                .scaledFont(.caption, monospacedDigit: true)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .trailing)
+            Button {
+                contacts.removeAll { $0.id == id }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .help(L("删除这个联系人（会从所有任务上移除）"))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+    }
+
     // MARK: Subtask pack rows
 
     private func packRow(_ binding: Binding<SubtaskPack>) -> some View {
@@ -308,7 +397,18 @@ struct SettingsView: View {
             if p.name.isEmpty { p.name = L("未命名") }
             return p
         }
-        store.applySettings(columns: cols, tags: tgs, priorities: prs, defaultPriorityID: defaultPriorityID, packs: pks)
+        let fls = flags.map { f in
+            var f = f
+            f.name = f.name.trimmingCharacters(in: .whitespaces)
+            if f.name.isEmpty { f.name = L("未命名") }
+            return f
+        }
+        store.applySettings(columns: cols, tags: tgs, priorities: prs, defaultPriorityID: defaultPriorityID, packs: pks, flags: fls, contacts: contacts.map { c in
+            var c = c
+            c.name = c.name.trimmingCharacters(in: .whitespaces)
+            if c.name.isEmpty { c.name = L("未命名") }
+            return c
+        })
     }
 }
 

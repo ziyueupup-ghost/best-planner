@@ -181,6 +181,7 @@ extension Board {
             t.links = original.links
             t.recurrence = original.recurrence
             t.repeatRule = original.repeatRule
+            t.contactIDs = original.contactIDs
             t.subtasks = original.subtasks.map { s in
                 Subtask(title: s.title, date: s.date.map(move), hasTime: s.hasTime)
             }

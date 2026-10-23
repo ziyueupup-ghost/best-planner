@@ -20,6 +20,8 @@ extension PlannerTask {
         r.backgroundHex = pick(base.backgroundHex, mine.backgroundHex, theirs.backgroundHex)
         r.recurrence = pick(base.recurrence, mine.recurrence, theirs.recurrence)
         r.repeatRule = pick(base.repeatRule, mine.repeatRule, theirs.repeatRule)
+        r.flagIDs = mergeIDs(base: base.flagIDs, mine: mine.flagIDs, theirs: theirs.flagIDs)
+        r.contactIDs = mergeIDs(base: base.contactIDs, mine: mine.contactIDs, theirs: theirs.contactIDs)
         r.notificationsOff = pick(base.notificationsOff, mine.notificationsOff, theirs.notificationsOff)
         r.tagIDs = mergeIDs(base: base.tagIDs, mine: mine.tagIDs, theirs: theirs.tagIDs)
         r.subtasks = mergeList(base: base.subtasks, mine: mine.subtasks, theirs: theirs.subtasks) { b, m, t in
@@ -41,7 +43,7 @@ extension PlannerTask {
     func sameEditableContent(as other: PlannerTask) -> Bool {
         title == other.title && notes == other.notes && columnID == other.columnID && priorityID == other.priorityID
             && tagIDs == other.tagIDs && subtasks == other.subtasks && dates == other.dates && links == other.links
-            && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence && repeatRule == other.repeatRule
+            && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence && repeatRule == other.repeatRule && flagIDs == other.flagIDs && contactIDs == other.contactIDs
             && notificationsOff == other.notificationsOff
     }
 }
@@ -122,6 +124,12 @@ extension Board {
         r.priorities = pick(base.priorities, mine.priorities, theirs.priorities)
         r.defaultPriorityID = pick(base.defaultPriorityID, mine.defaultPriorityID, theirs.defaultPriorityID)
         r.subtaskPacks = pick(base.subtaskPacks, mine.subtaskPacks, theirs.subtaskPacks)
+        r.flags = pick(base.flags, mine.flags, theirs.flags)
+        // Contacts can be added on both sides at once: merge them one by one.
+        r.contacts = mergeList(base: base.contacts, mine: mine.contacts, theirs: theirs.contacts) { b, m, t in
+            Contact(id: t.id, name: pick(b.name, m.name, t.name), email: pick(b.email, m.email, t.email),
+                    phone: pick(b.phone, m.phone, t.phone))
+        }
         r.widgetColumnIDs = pick(base.widgetColumnIDs, mine.widgetColumnIDs, theirs.widgetColumnIDs)
         r.widgetTagIDs = pick(base.widgetTagIDs, mine.widgetTagIDs, theirs.widgetTagIDs)
         var notes = theirs.dayNotes
