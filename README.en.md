@@ -41,6 +41,8 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Tasks**: notes, subtasks (reorderable, with an optional date and time), several dates (deadline / milestone / start / reminder, each with an optional time of day), stripe and background colors, attachments and links, history
 - **Tags**: emoji, 19 shapes, 8 styles, 7 border patterns, separate text / background / border colors, 18 color sets and 14 one-click looks
 - **Custom priorities** with names, colors and emoji
+- **Progress flags** (on track, struggling, needs follow-up, needs more info, waiting…), customizable, any number per task, shown on cards
+- **Contacts / collaborators** on tasks, remembered for reuse, with email and phone; click an email to write in Outlook; manage them in Settings → Contacts
 - **Folding** per column: whole column, by tag, by priority or by date; reorder groups by dragging
 - **Subtask packs**: reusable subtask lists, added in one click or automatically with a tag
 - **Repeating tasks** (daily, weekdays, weekly, every 2 weeks, monthly, yearly, or custom: every N days / weeks / months / years, on chosen weekdays such as Mon, Wed, Fri)
