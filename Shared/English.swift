@@ -715,5 +715,6 @@ enum English {
         "删除这个联系人（会从所有任务上移除）": "Delete this contact (removes them from all tasks)",
         "标记进展「{}」": "Marked “{}”",
         "取消进展「{}」": "Unmarked “{}”",
+        "拖动调整宽度": "Drag to resize",
     ]
 }

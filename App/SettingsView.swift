@@ -16,6 +16,8 @@ struct SettingsView: View {
     @State private var packs: [SubtaskPack]
     @State private var flags: [ProgressFlag]
     @State private var contacts: [Contact]
+    @AppStorage("contactNameWidth") private var contactNameWidth = 150.0
+    @AppStorage("contactPhoneWidth") private var contactPhoneWidth = 190.0
     @State private var tab = 0
     @State private var expandedTag: String?
     @State private var expandedPack: String?
@@ -64,6 +66,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                                 .padding(20)
                         }
+                        if !contacts.isEmpty { contactHeader }
                         ForEach($contacts) { $c in
                             contactRow($c)
                                 .background(stripe(contacts.firstIndex { $0.id == c.id }))
@@ -295,18 +298,38 @@ struct SettingsView: View {
 
     // MARK: Contact rows
 
+    /// Column titles, with handles between them to drag the name and phone widths.
+    private var contactHeader: some View {
+        HStack(spacing: 4) {
+            Color.clear.frame(width: 18)
+            Text(L("名字")).frame(width: contactNameWidth, alignment: .leading)
+            FieldWidthHandle(width: $contactNameWidth, range: 80...400, grows: .right)
+            Text(L("邮箱")).frame(maxWidth: .infinity, alignment: .leading)
+            FieldWidthHandle(width: $contactPhoneWidth, range: 90...400, grows: .left)
+            Text(L("电话")).frame(width: contactPhoneWidth, alignment: .leading)
+            Color.clear.frame(width: 36 + 10 + 18)
+        }
+        .scaledFont(.caption, weight: .semibold)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
+    }
+
     private func contactRow(_ c: Binding<Contact>) -> some View {
         let id = c.wrappedValue.id
-        return HStack(spacing: 10) {
-            Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+        return HStack(spacing: 4) {
+            Image(systemName: "person.crop.circle").foregroundStyle(.secondary).frame(width: 18)
             TextField(L("名字"), text: c.name)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 140)
+                .frame(width: contactNameWidth)
+            Color.clear.frame(width: 9)
             TextField(L("邮箱"), text: c.email)
                 .textFieldStyle(.roundedBorder)
+            Color.clear.frame(width: 9)
             TextField(L("电话"), text: c.phone)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 130)
+                .frame(width: contactPhoneWidth)
             Text(L("\(store.tasks.filter { $0.contactIDs.contains(id) }.count) 项"))
                 .scaledFont(.caption, monospacedDigit: true)
                 .foregroundStyle(.secondary)
@@ -700,5 +723,33 @@ struct IconPicker: View {
             }
             .padding(12)
         }
+    }
+}
+
+/// A thin vertical bar between two column titles; drag it to resize a column.
+private struct FieldWidthHandle: View {
+    enum Side { case left, right }
+    @Binding var width: Double
+    let range: ClosedRange<Double>
+    /// Which way the column grows when dragging: `.right` for a column left of the handle.
+    let grows: Side
+    @State private var startWidth: Double?
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.35))
+            .frame(width: 1, height: 14)
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+            .onHover { inside in if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
+            .gesture(DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    let start = startWidth ?? width
+                    startWidth = start
+                    let delta = grows == .right ? value.translation.width : -value.translation.width
+                    width = min(max(start + delta, range.lowerBound), range.upperBound)
+                }
+                .onEnded { _ in startWidth = nil })
+            .help(L("拖动调整宽度"))
     }
 }
