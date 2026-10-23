@@ -922,6 +922,20 @@ struct TaskCard: View {
                     Button(L("清除进展标记")) { store.toggleFlag(task.id, nil) }
                 }
             }
+            let mailable = board.contacts(of: task).filter { !$0.email.trimmingCharacters(in: .whitespaces).isEmpty }
+            if !mailable.isEmpty {
+                Menu(L("发邮件")) {
+                    ForEach(mailable) { c in
+                        Button("\(c.name) <\(c.email)>") { MailComposer.compose(to: [c.email], subject: task.title) }
+                    }
+                    if mailable.count > 1 {
+                        Divider()
+                        Button(L("发给全部（\(mailable.count) 人）")) {
+                            MailComposer.compose(to: mailable.map(\.email), subject: task.title)
+                        }
+                    }
+                }
+            }
             OpenLinksMenu(links: task.links)
             Divider()
             Button(L("复制任务")) { duplicate(resetChecks: false) }

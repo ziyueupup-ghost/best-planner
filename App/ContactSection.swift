@@ -115,9 +115,9 @@ struct ContactEditor: View {
                 Image(systemName: "envelope").frame(width: 18)
                 TextField(L("邮箱"), text: binding(\.email))
                     .textFieldStyle(.roundedBorder)
-                if let email = c?.email.trimmingCharacters(in: .whitespaces), !email.isEmpty,
-                   let url = URL(string: "mailto:\(email)") {
-                    Button(L("发邮件")) { NSWorkspace.shared.open(url) }
+                if let email = c?.email.trimmingCharacters(in: .whitespaces), !email.isEmpty {
+                    Button(L("发邮件")) { MailComposer.compose(to: [email]) }
+                        .help(L("用 Outlook 写新邮件"))
                 }
             }
             HStack {

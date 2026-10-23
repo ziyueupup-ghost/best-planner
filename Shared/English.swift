@@ -716,5 +716,7 @@ enum English {
         "标记进展「{}」": "Marked “{}”",
         "取消进展「{}」": "Unmarked “{}”",
         "拖动调整宽度": "Drag to resize",
+        "用 Outlook 写新邮件": "New email in Outlook",
+        "发给全部（{} 人）": "Email All ({})",
     ]
 }

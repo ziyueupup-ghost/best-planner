@@ -326,7 +326,14 @@ struct SettingsView: View {
             Color.clear.frame(width: 9)
             TextField(L("邮箱"), text: c.email)
                 .textFieldStyle(.roundedBorder)
-            Color.clear.frame(width: 9)
+            Button {
+                MailComposer.compose(to: [c.wrappedValue.email])
+            } label: {
+                Image(systemName: "envelope")
+            }
+            .buttonStyle(.borderless)
+            .disabled(c.wrappedValue.email.trimmingCharacters(in: .whitespaces).isEmpty)
+            .help(L("用 Outlook 写新邮件"))
             TextField(L("电话"), text: c.phone)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: contactPhoneWidth)
