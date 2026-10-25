@@ -137,3 +137,71 @@ struct ContactEditor: View {
         .frame(width: 320)
     }
 }
+
+/// A contact's name on a task card: click it for their email and phone, ready to use.
+struct ContactNameButton: View {
+    let contact: Contact
+    @State private var showing = false
+
+    var body: some View {
+        Button(contact.name) { showing = true }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.accentColor)
+            .popover(isPresented: $showing, arrowEdge: .bottom) { ContactQuickView(contact: contact) }
+    }
+}
+
+/// Email or call a contact (from a task card).
+private struct ContactQuickView: View {
+    let contact: Contact
+
+    private var email: String { contact.email.trimmingCharacters(in: .whitespaces) }
+    private var phone: String { contact.phone.trimmingCharacters(in: .whitespaces) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(contact.name, systemImage: "person.crop.circle.fill").font(.headline)
+            if email.isEmpty && phone.isEmpty {
+                Text(L("还没有邮箱和电话，可以在任务编辑窗口里点他的名字填写。"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !email.isEmpty {
+                HStack {
+                    Image(systemName: "envelope").frame(width: 18)
+                    Text(email).textSelection(.enabled).fixedSize()
+                    Spacer()
+                    copyButton(email)
+                    Button(L("发邮件")) { MailComposer.compose(to: [email]) }
+                        .help(L("用 Outlook 写新邮件"))
+                }
+            }
+            if !phone.isEmpty {
+                HStack {
+                    Image(systemName: "phone").frame(width: 18)
+                    Text(phone).textSelection(.enabled).fixedSize()
+                    Spacer()
+                    copyButton(phone)
+                    if let url = URL(string: "tel:\(phone.filter { $0.isNumber || $0 == "+" })") {
+                        Button(L("拨打")) { NSWorkspace.shared.open(url) }
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(minWidth: 330, idealWidth: 420, maxWidth: 520)
+        .fixedSize()
+    }
+
+    private func copyButton(_ text: String) -> some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        } label: {
+            Image(systemName: "doc.on.doc")
+        }
+        .buttonStyle(.borderless)
+        .help(L("复制"))
+    }
+}

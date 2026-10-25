@@ -718,5 +718,8 @@ enum English {
         "拖动调整宽度": "Drag to resize",
         "用 Outlook 写新邮件": "New email in Outlook",
         "发给全部（{} 人）": "Email All ({})",
+        "打开「{}」": "Open “{}”",
+        "还有 {} 个附件": "{} more attachments",
+        "还没有邮箱和电话，可以在任务编辑窗口里点他的名字填写。": "No email or phone yet — click their name in the task editor to add them.",
     ]
 }

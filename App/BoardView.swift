@@ -786,10 +786,13 @@ struct TaskCard: View {
             }
             let people = board.contacts(of: task)
             if !people.isEmpty {
-                Label(people.map(\.name).joined(separator: L("、|list")), systemImage: "person.2")
-                    .scaledFont(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: "person.2").foregroundStyle(.secondary)
+                    FlowLayout(spacing: 6) {
+                        ForEach(people) { ContactNameButton(contact: $0) }
+                    }
+                }
+                .scaledFont(.caption)
             }
 
             if !task.dates.isEmpty {
@@ -811,10 +814,25 @@ struct TaskCard: View {
             }
 
             if !task.links.isEmpty {
-                Label(L("\(task.links.count) 个附件"), systemImage: "paperclip")
-                    .scaledFont(.caption)
-                    .foregroundStyle(.secondary)
-                    .help(task.links.map(\.title).joined(separator: "\n"))
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(task.links.prefix(3)) { link in
+                        Button {
+                            if let url = URL(string: link.url) { NSWorkspace.shared.open(url) }
+                        } label: {
+                            Label(link.title, systemImage: link.isFile ? "paperclip" : "link")
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                        .help(L("打开「\(link.title)」"))
+                    }
+                    if task.links.count > 3 {
+                        Text(L("还有 \(task.links.count - 3) 个附件"))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .scaledFont(.caption)
             }
 
             if task.focusMinutes > 0 {
