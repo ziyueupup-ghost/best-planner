@@ -721,5 +721,11 @@ enum English {
         "打开「{}」": "Open “{}”",
         "还有 {} 个附件": "{} more attachments",
         "还没有邮箱和电话，可以在任务编辑窗口里点他的名字填写。": "No email or phone yet — click their name in the task editor to add them.",
+        "⏩ 按计划自动移动": "⏩ Moved as planned",
+        "添加自动移动": "Add Planned Move",
+        "自动移动": "Planned Moves",
+        "到了设定的日期 / 时间，任务会自动移到选定的状态（比如从待办到进行中）。软件开着时每半分钟检查一次；那时没开的话，下次打开时补上。": "At the set date / time the task moves to the chosen status (e.g. from To Do to Doing). Checked every 30 seconds while the app is open; if it isn’t, it happens next time you open it.",
+        "{} → {}": "{} → {}",
+        "到时间会自动移到「{}」": "Will move to “{}” at that time",
     ]
 }

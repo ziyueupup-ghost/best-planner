@@ -29,6 +29,7 @@ final class BoardStore: ObservableObject {
     /// means someone else (the desktop widget) changed it.
     private var knownFileDate: Date?
     private var watchTimer: Timer?
+    private var autoMoveTimer: Timer?
     /// The board as last read from / written to the file: the "base" for merging when
     /// the file changed elsewhere (the widget ticking something) before we save.
     private var syncedBoard: Board
@@ -86,6 +87,11 @@ final class BoardStore: ObservableObject {
         watchTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadIfChangedElsewhere() }
         }
+        // Planned moves ("10/30 9:00 → 进行中"): check now and every 30 seconds.
+        autoMoveTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyDueMoves() }
+        }
+        DispatchQueue.main.async { [weak self] in self?.applyDueMoves() }
         watchDataFolder()
         #if os(iOS)
         // Ticks made on the widget while the app was closed.
@@ -274,6 +280,15 @@ final class BoardStore: ObservableObject {
             guard let flagID else { t.flagIDs = []; return }
             if let i = t.flagIDs.firstIndex(of: flagID) { t.flagIDs.remove(at: i) } else { t.flagIDs.append(flagID) }
         }
+    }
+
+    /// Moves tasks whose planned move is due (see `Board.applyDueMoves`).
+    func applyDueMoves() {
+        guard board.tasks.contains(where: { t in t.autoMoves.contains { $0.dueDate <= Date() } }) else { return }
+        var b = board
+        b.applyDueMoves()
+        board = b
+        persist()
     }
 
     /// Turns a status or tag on or off for the widgets.

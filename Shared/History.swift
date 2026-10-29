@@ -139,6 +139,7 @@ extension Board {
         t.repeatRule = original.repeatRule
         t.flagIDs = original.flagIDs
         t.contactIDs = original.contactIDs
+        t.autoMoves = original.autoMoves.map { var m = $0; m.id = UUID().uuidString; return m }
         t.dates = original.dates.map { d in
             var d = d
             d.id = UUID().uuidString
@@ -203,5 +204,31 @@ extension Board {
         }
         t.updatedAt = Date()
         tasks[i] = t
+    }
+}
+
+extension Board {
+    /// Carries out planned moves that are due: each task goes to the planned status (the
+    /// latest due one wins when several are due at once) and those plans are removed.
+    /// Returns how many tasks moved.
+    @discardableResult
+    mutating func applyDueMoves(now: Date = Date()) -> Int {
+        var moved = 0
+        let oldColumns = columns
+        for i in tasks.indices where tasks[i].autoMoves.contains(where: { $0.dueDate <= now }) {
+            let old = tasks[i]
+            var t = old
+            let due = t.autoMoves.filter { $0.dueDate <= now }.sorted { $0.dueDate < $1.dueDate }
+            t.autoMoves.removeAll { $0.dueDate <= now }
+            if let target = due.last(where: { column($0.columnID) != nil })?.columnID, target != t.columnID {
+                t.columnID = target
+                t.order = topOrder(in: target)
+                record(from: old, to: &t, oldColumns: oldColumns)
+                Board.appendHistory(&t, HistoryEntry(kind: .moved, text: L("⏩ 按计划自动移动")))
+                moved += 1
+            }
+            tasks[i] = t
+        }
+        return moved
     }
 }

@@ -32,6 +32,10 @@ extension PlannerTask {
             TaskDate(id: t.id, kind: pick(b.kind, m.kind, t.kind), date: pick(b.date, m.date, t.date), note: pick(b.note, m.note, t.note),
                      hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
         }
+        r.autoMoves = mergeList(base: base.autoMoves, mine: mine.autoMoves, theirs: theirs.autoMoves) { b, m, t in
+            AutoMove(id: t.id, date: pick(b.date, m.date, t.date), columnID: pick(b.columnID, m.columnID, t.columnID),
+                     hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
+        }
         r.links = mergeList(base: base.links, mine: mine.links, theirs: theirs.links) { b, m, t in
             TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url))
         }
@@ -43,7 +47,7 @@ extension PlannerTask {
     func sameEditableContent(as other: PlannerTask) -> Bool {
         title == other.title && notes == other.notes && columnID == other.columnID && priorityID == other.priorityID
             && tagIDs == other.tagIDs && subtasks == other.subtasks && dates == other.dates && links == other.links
-            && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence && repeatRule == other.repeatRule && flagIDs == other.flagIDs && contactIDs == other.contactIDs
+            && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence && repeatRule == other.repeatRule && flagIDs == other.flagIDs && contactIDs == other.contactIDs && autoMoves == other.autoMoves
             && notificationsOff == other.notificationsOff
     }
 }

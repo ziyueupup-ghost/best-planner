@@ -67,6 +67,29 @@ enum SortMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// "At this date/time, move the task to that status" (set in the task editor).
+struct AutoMove: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var date: Date
+    var columnID: String
+    /// A time of day was chosen; otherwise it happens at the start of that day.
+    var hasTime = true
+
+    /// When it's due.
+    var dueDate: Date { hasTime ? date : Calendar.current.startOfDay(for: date) }
+    var label: String { hasTime ? date.shortTimeLabel : date.shortLabel }
+}
+
+extension AutoMove {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        date = try c.decode(Date.self, forKey: .date)
+        columnID = (try? c.decodeIfPresent(String.self, forKey: .columnID)) ?? ""
+        hasTime = (try? c.decodeIfPresent(Bool.self, forKey: .hasTime)) ?? true
+    }
+}
+
 /// A contact / collaborator. Kept on the board once used, so they can be picked again.
 struct Contact: Codable, Identifiable, Hashable {
     var id: String = UUID().uuidString
@@ -373,6 +396,11 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     var flagIDs: [String] = []
     /// Contacts / collaborators on this task (ids in `Board.contacts`).
     var contactIDs: [String] = []
+    /// Planned moves to other statuses; each is removed once done.
+    var autoMoves: [AutoMove] = []
+
+    /// The next planned move, if any.
+    var nextAutoMove: AutoMove? { autoMoves.min { $0.dueDate < $1.dueDate } }
     /// Finished focus (pomodoro) sessions.
     var focusSessions: [FocusSession] = []
 
@@ -409,6 +437,7 @@ struct PlannerTask: Codable, Identifiable, Hashable {
         notificationsOff = try c.decodeIfPresent(Bool.self, forKey: .notificationsOff) ?? false
         flagIDs = (try? c.decodeIfPresent([String].self, forKey: .flagIDs)) ?? []
         contactIDs = (try? c.decodeIfPresent([String].self, forKey: .contactIDs)) ?? []
+        autoMoves = (try? c.decodeIfPresent([AutoMove].self, forKey: .autoMoves)) ?? []
         focusSessions = (try? c.decodeIfPresent([FocusSession].self, forKey: .focusSessions)) ?? []
     }
 

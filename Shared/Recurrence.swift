@@ -182,6 +182,7 @@ extension Board {
             t.recurrence = original.recurrence
             t.repeatRule = original.repeatRule
             t.contactIDs = original.contactIDs
+            t.autoMoves = original.autoMoves.map { AutoMove(date: move($0.date), columnID: $0.columnID, hasTime: $0.hasTime) }
             t.subtasks = original.subtasks.map { s in
                 Subtask(title: s.title, date: s.date.map(move), hasTime: s.hasTime)
             }

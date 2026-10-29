@@ -813,6 +813,13 @@ struct TaskCard: View {
                 }
             }
 
+            if let m = task.nextAutoMove, let target = board.column(m.columnID) {
+                Label(L("\(m.label) → \(target.name)"), systemImage: "forward.fill")
+                    .scaledFont(.caption)
+                    .foregroundStyle(target.color)
+                    .help(L("到时间会自动移到「\(target.name)」"))
+            }
+
             if !task.links.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(task.links.prefix(3)) { link in

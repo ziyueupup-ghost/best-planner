@@ -39,6 +39,7 @@ struct TaskEditor: View {
                 flagSection
                 ContactSection(contactIDs: $task.contactIDs)
                 dateSection
+                autoMoveSection
                 subtaskSection
                 LinksSection(links: $task.links)
                 historySection
@@ -175,6 +176,52 @@ struct TaskEditor: View {
                 Button(L("添加"), action: addTag)
                     .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
             }
+        }
+    }
+
+    /// Planned moves: "at this date/time, move to that status".
+    private var autoMoveSection: some View {
+        Section {
+            ForEach($task.autoMoves) { $m in
+                HStack(spacing: 8) {
+                    Image(systemName: "forward.fill").foregroundStyle(.secondary).frame(width: 18)
+                    DatePicker("", selection: $m.date, displayedComponents: m.hasTime ? [.date, .hourAndMinute] : [.date])
+                        .labelsHidden()
+                    Toggle(L("时间"), isOn: $m.hasTime)
+                        .toggleStyle(.checkbox)
+                    Text(L("移到"))
+                    Picker("", selection: $m.columnID) {
+                        ForEach(store.columns) { c in Text(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)").tag(c.id) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 150)
+                    Spacer(minLength: 0)
+                    Button {
+                        task.autoMoves.removeAll { $0.id == m.id }
+                    } label: {
+                        Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button {
+                let cal = Calendar.current
+                let tomorrow9 = cal.date(bySettingHour: 9, minute: 0, second: 0,
+                                         of: cal.date(byAdding: .day, value: 1, to: Date()) ?? Date()) ?? Date()
+                // Default target: the status after the current one.
+                let cols = store.columns
+                let i = cols.firstIndex { $0.id == task.columnID } ?? 0
+                let target = cols[min(i + 1, cols.count - 1)].id
+                task.autoMoves.append(AutoMove(date: tomorrow9, columnID: target))
+            } label: {
+                Label(L("添加自动移动"), systemImage: "plus")
+            }
+        } header: {
+            Text(L("自动移动"))
+        } footer: {
+            Text(L("到了设定的日期 / 时间，任务会自动移到选定的状态（比如从待办到进行中）。软件开着时每半分钟检查一次；那时没开的话，下次打开时补上。"))
+                .scaledFont(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
