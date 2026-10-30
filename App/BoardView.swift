@@ -1069,37 +1069,57 @@ struct DateLine: View {
     var moveTarget: BoardColumn? = nil
 
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: date.kind.symbol)
-                .foregroundStyle(overdue ? .red : date.kind.color)
-            Text(date.kind.title)
-                .foregroundStyle(.secondary)
-                .fixedSize()
-            // Date and move chip never wrap; only the note gets shortened when space runs out.
-            Text(date.showsTime
-                 ? date.date.formatted(.dateTime.month(.defaultDigits).day().hour().minute())
-                 : date.date.formatted(.dateTime.year(.twoDigits).month(.defaultDigits).day()))
-                .foregroundStyle(overdue ? .red : .primary)
-                .fontWeight(overdue ? .semibold : .regular)
-                .fixedSize()
-            if let moveTarget {
-                Text("→ \(moveTarget.name)")
-                    .foregroundStyle(moveTarget.color)
-                    .padding(.horizontal, 5)
-                    .background(moveTarget.color.opacity(0.14), in: Capsule())
-                    .fixedSize()
-                    .help(L("到时间会自动移到「\(moveTarget.name)」"))
+        // Everything on one line when it fits; otherwise the note goes on its own line
+        // underneath (in full) instead of being cut off.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                head
+                if !date.note.isEmpty { note.fixedSize() }
+                if overdue { overdueText }
             }
-            if !date.note.isEmpty {
-                Text(date.note)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            if overdue {
-                Text(L("已过期")).foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    head
+                    if overdue { overdueText }
+                }
+                if !date.note.isEmpty {
+                    note
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 18)
+                }
             }
         }
         .scaledFont(.caption)
+    }
+
+    @ViewBuilder private var head: some View {
+        Image(systemName: date.kind.symbol)
+            .foregroundStyle(overdue ? .red : date.kind.color)
+        Text(date.kind.title)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+        Text(date.showsTime
+             ? date.date.formatted(.dateTime.month(.defaultDigits).day().hour().minute())
+             : date.date.formatted(.dateTime.year(.twoDigits).month(.defaultDigits).day()))
+            .foregroundStyle(overdue ? .red : .primary)
+            .fontWeight(overdue ? .semibold : .regular)
+            .fixedSize()
+        if let moveTarget {
+            Text("→ \(moveTarget.name)")
+                .foregroundStyle(moveTarget.color)
+                .padding(.horizontal, 5)
+                .background(moveTarget.color.opacity(0.14), in: Capsule())
+                .fixedSize()
+                .help(L("到时间会自动移到「\(moveTarget.name)」"))
+        }
+    }
+
+    private var note: some View {
+        Text(date.note).foregroundStyle(.secondary)
+    }
+
+    private var overdueText: some View {
+        Text(L("已过期")).foregroundStyle(.red).fixedSize()
     }
 }
 
