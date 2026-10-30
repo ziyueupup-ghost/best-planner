@@ -187,7 +187,7 @@ extension Board {
                 Subtask(title: s.title, date: s.date.map(move), hasTime: s.hasTime)
             }
             t.dates = original.dates.map { d in
-                TaskDate(kind: d.kind, date: move(d.date), note: d.note, hasTime: d.hasTime)
+                TaskDate(kind: d.kind, date: move(d.date), note: d.note, hasTime: d.hasTime, moveTo: d.moveTo)
             }
             t.order = topOrder(in: target.id)
             record(from: nil, to: &t, oldColumns: columns)

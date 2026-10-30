@@ -39,7 +39,7 @@ struct TaskEditor: View {
                 flagSection
                 ContactSection(contactIDs: $task.contactIDs)
                 dateSection
-                autoMoveSection
+                if !task.autoMoves.isEmpty { autoMoveSection }
                 subtaskSection
                 LinksSection(links: $task.links)
                 historySection
@@ -281,9 +281,22 @@ struct TaskEditor: View {
                         .buttonStyle(.plain)
                         .help(L("删除这个日期"))
                     }
-                    TextField(L("说明"), text: $d.note, prompt: Text(L("说明（可选），例如：初稿完成")))
+                    HStack(spacing: 8) {
+                        TextField(L("说明"), text: $d.note, prompt: Text(L("说明（可选），例如：初稿完成")))
+                            .labelsHidden()
+                        Image(systemName: "forward.fill")
+                            .foregroundStyle(d.moveTo == nil ? Color.secondary : Color.accentColor)
+                        Picker("", selection: $d.moveTo) {
+                            Text(L("到时不移动")).tag(String?.none)
+                            ForEach(store.columns) { c in
+                                Text(L("到时移到「\(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)")」")).tag(String?.some(c.id))
+                            }
+                        }
                         .labelsHidden()
-                        .padding(.leading, 26)
+                        .fixedSize()
+                        .help(L("到了这个日期 / 时间，自动把任务移到选定的状态（没勾「时间」的话是那天一开始）"))
+                    }
+                    .padding(.leading, 26)
                 }
             }
             if task.dates.contains(where: { $0.kind == .reminder || $0.kind == .deadline }) {
@@ -308,7 +321,7 @@ struct TaskEditor: View {
         } header: {
             Text(L("日期"))
         } footer: {
-            Text(L("可以添加多个：截止、里程碑、开始、提醒。「提醒」到点会弹出通知，「截止」当天早上 9 点通知；截止日期过了会标红。"))
+            Text(L("可以添加多个：截止、里程碑、开始、提醒。「提醒」到点会弹出通知，「截止」当天早上 9 点通知；截止日期过了会标红。每个日期还可以选「到时移到」某个状态，比如开始那天自动移到进行中（软件开着时每半分钟检查一次，没开的话下次打开时补上）。"))
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
         }

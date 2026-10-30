@@ -30,7 +30,7 @@ extension PlannerTask {
         }
         r.dates = mergeList(base: base.dates, mine: mine.dates, theirs: theirs.dates) { b, m, t in
             TaskDate(id: t.id, kind: pick(b.kind, m.kind, t.kind), date: pick(b.date, m.date, t.date), note: pick(b.note, m.note, t.note),
-                     hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
+                     hasTime: pick(b.hasTime, m.hasTime, t.hasTime), moveTo: pick(b.moveTo, m.moveTo, t.moveTo))
         }
         r.autoMoves = mergeList(base: base.autoMoves, mine: mine.autoMoves, theirs: theirs.autoMoves) { b, m, t in
             AutoMove(id: t.id, date: pick(b.date, m.date, t.date), columnID: pick(b.columnID, m.columnID, t.columnID),

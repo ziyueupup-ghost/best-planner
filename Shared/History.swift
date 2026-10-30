@@ -215,11 +215,18 @@ extension Board {
     mutating func applyDueMoves(now: Date = Date()) -> Int {
         var moved = 0
         let oldColumns = columns
-        for i in tasks.indices where tasks[i].autoMoves.contains(where: { $0.dueDate <= now }) {
+        for i in tasks.indices where tasks[i].autoMoves.contains(where: { $0.dueDate <= now })
+            || tasks[i].dates.contains(where: { $0.moveTo != nil && $0.dueDate <= now }) {
             let old = tasks[i]
             var t = old
-            let due = t.autoMoves.filter { $0.dueDate <= now }.sorted { $0.dueDate < $1.dueDate }
+            // Due moves from dates ("到时移到") and older planned moves, earliest first.
+            let fromDates = t.dates.compactMap { d -> AutoMove? in
+                guard let target = d.moveTo, d.dueDate <= now else { return nil }
+                return AutoMove(id: d.id, date: d.date, columnID: target, hasTime: d.showsTime)
+            }
+            let due = (t.autoMoves.filter { $0.dueDate <= now } + fromDates).sorted { $0.dueDate < $1.dueDate }
             t.autoMoves.removeAll { $0.dueDate <= now }
+            for j in t.dates.indices where t.dates[j].moveTo != nil && t.dates[j].dueDate <= now { t.dates[j].moveTo = nil }
             if let target = due.last(where: { column($0.columnID) != nil })?.columnID, target != t.columnID {
                 t.columnID = target
                 t.order = topOrder(in: target)

@@ -208,6 +208,11 @@ struct TaskDate: Codable, Identifiable, Hashable {
     var note: String = ""
     /// A time of day was chosen (reminders always have one).
     var hasTime = false
+    /// When this date comes, move the task to this status (cleared once done).
+    var moveTo: String?
+
+    /// When it counts as reached (start of the day without a time).
+    var dueDate: Date { showsTime ? date : Calendar.current.startOfDay(for: date) }
 
     var showsTime: Bool { kind == .reminder || hasTime }
     /// "22/10" or "22/10 15:30".
@@ -223,6 +228,7 @@ extension TaskDate {
         date = try c.decode(Date.self, forKey: .date)
         note = (try? c.decodeIfPresent(String.self, forKey: .note)) ?? ""
         hasTime = (try? c.decodeIfPresent(Bool.self, forKey: .hasTime)) ?? false
+        moveTo = try? c.decodeIfPresent(String.self, forKey: .moveTo)
     }
 }
 
@@ -399,8 +405,11 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     /// Planned moves to other statuses; each is removed once done.
     var autoMoves: [AutoMove] = []
 
-    /// The next planned move, if any.
-    var nextAutoMove: AutoMove? { autoMoves.min { $0.dueDate < $1.dueDate } }
+    /// The next planned move (from a date's "到时移到", or an older planned move), if any.
+    var nextAutoMove: AutoMove? {
+        let fromDates = dates.compactMap { d in d.moveTo.map { AutoMove(id: d.id, date: d.date, columnID: $0, hasTime: d.showsTime) } }
+        return (autoMoves + fromDates).min { $0.dueDate < $1.dueDate }
+    }
     /// Finished focus (pomodoro) sessions.
     var focusSessions: [FocusSession] = []
 

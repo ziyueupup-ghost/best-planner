@@ -284,7 +284,10 @@ final class BoardStore: ObservableObject {
 
     /// Moves tasks whose planned move is due (see `Board.applyDueMoves`).
     func applyDueMoves() {
-        guard board.tasks.contains(where: { t in t.autoMoves.contains { $0.dueDate <= Date() } }) else { return }
+        let now = Date()
+        guard board.tasks.contains(where: { t in
+            t.autoMoves.contains { $0.dueDate <= now } || t.dates.contains { $0.moveTo != nil && $0.dueDate <= now }
+        }) else { return }
         var b = board
         b.applyDueMoves()
         board = b

@@ -727,5 +727,9 @@ enum English {
         "到了设定的日期 / 时间，任务会自动移到选定的状态（比如从待办到进行中）。软件开着时每半分钟检查一次；那时没开的话，下次打开时补上。": "At the set date / time the task moves to the chosen status (e.g. from To Do to Doing). Checked every 30 seconds while the app is open; if it isn’t, it happens next time you open it.",
         "{} → {}": "{} → {}",
         "到时间会自动移到「{}」": "Will move to “{}” at that time",
+        "到时不移动": "Don’t move",
+        "到时移到「{}」": "Then move to “{}”",
+        "到了这个日期 / 时间，自动把任务移到选定的状态（没勾「时间」的话是那天一开始）": "When this date / time comes, move the task to the chosen status (without a time: at the start of that day)",
+        "可以添加多个：截止、里程碑、开始、提醒。「提醒」到点会弹出通知，「截止」当天早上 9 点通知；截止日期过了会标红。每个日期还可以选「到时移到」某个状态，比如开始那天自动移到进行中（软件开着时每半分钟检查一次，没开的话下次打开时补上）。": "Add as many as you like: deadline, milestone, start, reminder. Reminders notify at their time; deadlines at 9:00 that day and turn red when past. Each date can also “then move to” a status — e.g. move to Doing on the start date (checked every 30 seconds while the app is open, or when it next opens).",
     ]
 }
