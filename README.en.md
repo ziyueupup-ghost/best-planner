@@ -45,7 +45,7 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Contacts / collaborators** on tasks, remembered for reuse, with email and phone; click an email to write in Outlook; manage them in Settings → Contacts
 - **Folding** per column: whole column, by tag, by priority or by date; reorder groups by dragging
 - **Subtask packs**: reusable subtask lists, added in one click or automatically with a tag
-- **Planned moves**: at a set date/time, a task moves to the status you chose (e.g. from To Do to Doing); several per task
+- **Planned moves**: any date can “then move to” a status — e.g. move from To Do to Doing on the start date
 - **Repeating tasks** (daily, weekdays, weekly, every 2 weeks, monthly, yearly, or custom: every N days / weeks / months / years, on chosen weekdays such as Mon, Wed, Fri)
 - **Reminders** as macOS notifications (per-task on/off)
 - **Quick Add** from anywhere with **⌃⌥N** or the menu bar icon — understands `Send draft tomorrow 3pm #Work !urgent @Doing`
