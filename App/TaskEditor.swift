@@ -179,6 +179,33 @@ struct TaskEditor: View {
         }
     }
 
+    /// The small "→ 进行中" / "+ 到时移动" capsule on a date: what status it moves the task to.
+    private func moveMenu(_ moveTo: Binding<String?>) -> some View {
+        let target = moveTo.wrappedValue.flatMap { id in store.columns.first { $0.id == id } }
+        return Menu {
+            ForEach(store.columns) { c in
+                Button(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)") { moveTo.wrappedValue = c.id }
+            }
+            if target != nil {
+                Divider()
+                Button(L("到时不移动")) { moveTo.wrappedValue = nil }
+            }
+        } label: {
+            Text(target.map { "→ \($0.name)" } ?? L("+ 到时移动"))
+                .scaledFont(.caption)
+                .foregroundStyle(target?.color ?? Color.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background((target?.color ?? Color.secondary).opacity(target == nil ? 0.08 : 0.15), in: Capsule())
+        }
+        // .button + .plain keeps the capsule look (a borderless menu would drop it).
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(L("到了这个日期 / 时间，自动把任务移到选定的状态（没有时间的话是那天一开始）"))
+    }
+
     /// Planned moves: "at this date/time, move to that status".
     private var autoMoveSection: some View {
         Section {
@@ -254,50 +281,58 @@ struct TaskEditor: View {
     private var dateSection: some View {
         Section {
             ForEach($task.dates) { $d in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
                         Image(systemName: d.kind.symbol)
                             .foregroundStyle(d.kind.color)
                             .frame(width: 18)
-                        Picker("", selection: $d.kind) {
-                            ForEach(DateKind.allCases) { Text($0.title).tag($0) }
+                        Menu {
+                            Picker("", selection: $d.kind) {
+                                ForEach(DateKind.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+                            }
+                            .pickerStyle(.inline)
+                            .labelsHidden()
+                        } label: {
+                            Text(d.kind.title).foregroundStyle(d.kind.color)
                         }
-                        .labelsHidden()
-                        .frame(width: 90)
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
                         DatePicker("", selection: $d.date,
                                    displayedComponents: d.showsTime ? [.date, .hourAndMinute] : [.date])
                             .labelsHidden()
+                            .fixedSize()
                         if d.kind != .reminder {
-                            Toggle(L("时间"), isOn: $d.hasTime)
-                                .toggleStyle(.checkbox)
-                                .help(L("设定具体几点几分（到点通知；不设就是当天早上 9 点通知）"))
+                            Button {
+                                d.hasTime.toggle()
+                            } label: {
+                                Text(d.hasTime ? L("去掉时间") : L("+ 时间"))
+                                    .scaledFont(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help(L("设定具体几点几分（到点通知；不设就是当天早上 9 点通知）"))
                         }
-                        Spacer()
+                        Spacer(minLength: 0)
                         Button {
                             task.dates.removeAll { $0.id == d.id }
                         } label: {
-                            Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                            Image(systemName: "minus.circle.fill").foregroundStyle(.tertiary)
                         }
                         .buttonStyle(.plain)
                         .help(L("删除这个日期"))
                     }
                     HStack(spacing: 8) {
-                        TextField(L("说明"), text: $d.note, prompt: Text(L("说明（可选），例如：初稿完成")))
+                        TextField(L("说明"), text: $d.note, prompt: Text(L("说明（可选）")))
                             .labelsHidden()
-                        Image(systemName: "forward.fill")
-                            .foregroundStyle(d.moveTo == nil ? Color.secondary : Color.accentColor)
-                        Picker("", selection: $d.moveTo) {
-                            Text(L("到时不移动")).tag(String?.none)
-                            ForEach(store.columns) { c in
-                                Text(L("到时移到「\(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)")」")).tag(String?.some(c.id))
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                        .help(L("到了这个日期 / 时间，自动把任务移到选定的状态（没勾「时间」的话是那天一开始）"))
+                            .multilineTextAlignment(.leading)
+                            .textFieldStyle(.plain)
+                            .scaledFont(.callout)
+                            .foregroundStyle(.secondary)
+                        moveMenu($d.moveTo)
                     }
                     .padding(.leading, 26)
                 }
+                .padding(.vertical, 2)
             }
             if task.dates.contains(where: { $0.kind == .reminder || $0.kind == .deadline }) {
                 Toggle(isOn: Binding(get: { !task.notificationsOff }, set: { task.notificationsOff = !$0 })) {

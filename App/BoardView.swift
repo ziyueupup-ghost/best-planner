@@ -798,7 +798,7 @@ struct TaskCard: View {
             if !task.dates.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
                     ForEach(task.sortedDates.prefix(3)) { d in
-                        DateLine(date: d, overdue: board.isOverdue(d, of: task))
+                        DateLine(date: d, overdue: board.isOverdue(d, of: task), moveTarget: d.moveTo.flatMap { board.column($0) })
                     }
                     if task.notificationsOff, task.dates.contains(where: { $0.kind == .reminder || $0.kind == .deadline }) {
                         Label(L("不发通知"), systemImage: "bell.slash")
@@ -813,7 +813,8 @@ struct TaskCard: View {
                 }
             }
 
-            if let m = task.nextAutoMove, let target = board.column(m.columnID) {
+            // Older stand-alone planned moves (moves on dates show on their date line).
+            if let m = task.autoMoves.min(by: { $0.dueDate < $1.dueDate }), let target = board.column(m.columnID) {
                 Label(L("\(m.label) → \(target.name)"), systemImage: "forward.fill")
                     .scaledFont(.caption)
                     .foregroundStyle(target.color)
@@ -1064,6 +1065,8 @@ struct TaskCard: View {
 struct DateLine: View {
     let date: TaskDate
     let overdue: Bool
+    /// The status this date moves the task to ("到时移到"), shown as a small chip.
+    var moveTarget: BoardColumn? = nil
 
     var body: some View {
         HStack(spacing: 4) {
@@ -1071,11 +1074,22 @@ struct DateLine: View {
                 .foregroundStyle(overdue ? .red : date.kind.color)
             Text(date.kind.title)
                 .foregroundStyle(.secondary)
+                .fixedSize()
+            // Date and move chip never wrap; only the note gets shortened when space runs out.
             Text(date.showsTime
                  ? date.date.formatted(.dateTime.month(.defaultDigits).day().hour().minute())
                  : date.date.formatted(.dateTime.year(.twoDigits).month(.defaultDigits).day()))
                 .foregroundStyle(overdue ? .red : .primary)
                 .fontWeight(overdue ? .semibold : .regular)
+                .fixedSize()
+            if let moveTarget {
+                Text("→ \(moveTarget.name)")
+                    .foregroundStyle(moveTarget.color)
+                    .padding(.horizontal, 5)
+                    .background(moveTarget.color.opacity(0.14), in: Capsule())
+                    .fixedSize()
+                    .help(L("到时间会自动移到「\(moveTarget.name)」"))
+            }
             if !date.note.isEmpty {
                 Text(date.note)
                     .foregroundStyle(.secondary)
