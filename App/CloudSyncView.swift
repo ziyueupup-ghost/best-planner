@@ -10,6 +10,7 @@ struct CloudSyncView: View {
     @State private var signUp = false
     @State private var working = false
     @State private var error: String?
+    @State private var justSignedUp = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -33,6 +34,12 @@ struct CloudSyncView: View {
 
     private var signedIn: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if justSignedUp {
+                Label(L("注册成功！欢迎你，\(cloud.email ?? "")"), systemImage: "checkmark.circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.green)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             LabeledContent(L("账号"), value: cloud.email ?? "")
             Text(cloud.statusText)
                 .font(.callout)
@@ -85,6 +92,8 @@ struct CloudSyncView: View {
             do {
                 try await cloud.signIn(email: email, password: password, invite: signUp ? invite : nil, signUp: signUp)
                 password = ""
+                justSignedUp = signUp
+                signUp = false
             } catch {
                 self.error = error.localizedDescription
             }

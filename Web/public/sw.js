@@ -1,7 +1,7 @@
 // Lets the home-screen app open without a connection: the page files are fetched from the
 // network when possible (so updates show up at once) and from this cache otherwise.
 // The board itself is kept by the page (localStorage) and synced through /api.
-const CACHE = "best-planner-v3";
+const CACHE = "best-planner-v6";
 const FILES = ["/", "/index.html", "/style.css", "/app.js", "/merge.js", "/i18n.js", "/tags.js", "/manifest.webmanifest", "/icon-180.png", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {

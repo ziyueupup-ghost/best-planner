@@ -27,7 +27,7 @@ The web version: https://best-planner.orgevery.workers.dev
 Notes:
 - The web version has no focus timer, agenda, review, statistics or multi-select; the next copy of a repeating task is created when the Mac app is open.
 - Files attached on a Mac open only on that Mac; the website shows the device name and path, which you can copy.
-- There’s no self-service password reset; the admin runs `Web/reset-password.sh`.
+- A wrong password shows how many tries are left; after 5 in a row, wait 15 minutes. There’s no self-service password reset; the admin runs `Web/reset-password.sh`.
 - Accounts can’t see each other’s tasks. iCloud Drive sync still works alongside cloud sync.
 
 ## iPhone app (no longer updated)

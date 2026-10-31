@@ -52,14 +52,14 @@ async function login(request, env) {
   const { email, password } = await body(request);
   const mail = normalizeEmail(email);
   const user = mail && await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(mail).first();
-  if (!user) return json({ error: "wrong" }, 401);
+  if (!user) return json({ error: "no_account" }, 401);
   if (user.locked_until > Date.now()) return json({ error: "locked" }, 429);
   if (typeof password !== "string" || await hashPassword(password, user.salt) !== user.hash) {
     // Five wrong passwords in a row: wait 15 minutes.
     const failed = user.failed + 1;
     const lock = failed >= 5 ? Date.now() + 15 * 60_000 : 0;
     await env.DB.prepare("UPDATE users SET failed = ?, locked_until = ? WHERE id = ?").bind(lock ? 0 : failed, lock, user.id).run();
-    return json({ error: "wrong" }, 401);
+    return json(lock ? { error: "locked" } : { error: "wrong", left: 5 - failed }, lock ? 429 : 401);
   }
   await env.DB.prepare("UPDATE users SET failed = 0, locked_until = 0 WHERE id = ?").bind(user.id).run();
   return json({ token: await newSession(env, user.id), email: mail });
@@ -89,7 +89,8 @@ async function getBoard(request, env, url) {
   const row = await env.DB.prepare("SELECT version, data FROM boards WHERE user_id = ?").bind(user).first();
   const version = row ? row.version : 0;
   // The client already has this version: no need to send the whole board again.
-  if (url.searchParams.get("known") === String(version)) return json({ version, unchanged: true });
+  // (Never for an empty board: a brand-new account must get `board: null` so the client starts one.)
+  if (row && row.data && url.searchParams.get("known") === String(version)) return json({ version, unchanged: true });
   return json({ version, board: row && row.data ? JSON.parse(await gunzip(row.data)) : null });
 }
 

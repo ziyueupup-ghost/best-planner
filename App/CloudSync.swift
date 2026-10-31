@@ -80,7 +80,8 @@ final class CloudSync: ObservableObject {
         let (status, json) = try await request("POST", signUp ? "/api/signup" : "/api/login", body: try JSONSerialization.data(withJSONObject: body))
         guard status == 200, let token = json["token"] as? String else {
             let messages = [
-                "wrong": L("账号或密码不对"), "locked": L("密码错误次数太多，请 15 分钟后再试"),
+                "wrong": L("密码不对，还可以再试 \((json["left"] as? Int) ?? 1) 次"),
+                "no_account": L("没有这个账号，请检查拼写，或先注册"), "locked": L("密码错误次数太多，请 15 分钟后再试"),
                 "email_taken": L("这个账号已经被注册了"), "email": L("账号格式不对：用邮箱，或 3–32 位字母、数字、. _ -"),
                 "password_short": L("密码至少 8 位"), "invite": L("邀请码不对"),
             ]

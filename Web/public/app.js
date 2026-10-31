@@ -33,11 +33,15 @@ function restoreCache() {
 }
 
 async function api(method, path, data) {
+  // Give up after 20 seconds instead of spinning for minutes on a bad connection.
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 20_000);
   const res = await fetch(path, {
     method,
+    signal: abort.signal,
     headers: { "Content-Type": "application/json", ...(store.token ? { Authorization: `Bearer ${store.token}` } : {}) },
     body: data === undefined ? undefined : JSON.stringify(data),
-  });
+  }).finally(() => clearTimeout(timer));
   const body = await res.json().catch(() => ({}));
   // Only an expired or unknown session signs out (not, say, a wrong password).
   if (res.status === 401 && body.error === "auth") { signOut(); throw new Error("auth"); }
@@ -51,11 +55,12 @@ async function sync() {
   if (syncing) { syncAgain = true; return syncing; }
   syncing = (async () => {
     try {
-      const { status, body } = await api("GET", `/api/board?known=${store.version}`);
+      // Without a board yet (just signed in), always ask for the whole thing.
+      const { status, body } = await api("GET", store.board ? `/api/board?known=${store.version}` : "/api/board");
       if (status !== 200) throw new Error(body.error || status);
       if (!body.unchanged) absorb(body.version, body.board);
       for (let attempt = 0; attempt < 5 && store.dirty; attempt++) {
-        const sent = store.board;
+        const sent = snapshot(store.board);
         const r = await api("PUT", "/api/board", { baseVersion: store.version, board: sent });
         if (r.status === 200) {
           store.version = r.body.version;
@@ -81,6 +86,9 @@ async function sync() {
 }
 let syncAgain = false;
 
+/** A separate copy, so later edits to the board can't change the synced snapshot (base). */
+const snapshot = (board) => JSON.parse(JSON.stringify(board));
+
 /** A newer board from the server. */
 function absorb(version, theirs) {
   if (!theirs) {
@@ -98,10 +106,10 @@ function absorb(version, theirs) {
   else if (store.base) next = mergeBoards(store.base, store.board, theirs);
   else next = mergeBoards({ ...theirs, tasks: [], trash: [], contacts: [] }, store.board, theirs);
   store.version = version;
-  store.base = theirs;
+  store.base = snapshot(theirs);
   store.dirty = !same(next, theirs);
   store.board = next;
-  applyDueMoves();
+  if (applyDueMoves()) store.dirty = true;   // moves that came due must be sent too
   render();
 }
 
@@ -1230,12 +1238,18 @@ document.addEventListener("click", async (e) => {
       break;
     }
     case "password": {
-      const r = await api("POST", "/api/password", { oldPassword: $("#pw-old").value, newPassword: $("#pw-new").value });
-      $("#pw-msg").textContent = r.status === 200 ? t("密码已修改") : r.body.error === "password_short" ? t("新密码至少 8 位") : t("当前密码不对");
+      const r = await api("POST", "/api/password", { oldPassword: $("#pw-old").value, newPassword: $("#pw-new").value })
+        .catch(() => ({ status: 0, body: { error: "network" } }));
+      $("#pw-msg").textContent = r.status === 200 ? t("密码已修改") : r.body.error === "password_short" ? t("新密码至少 8 位") : r.body.error === "network" ? t("连不上服务器，请检查网络") : t("当前密码不对");
       return;
     }
     case "signout":
-      if (confirm(t("退出登录？"))) { await api("POST", "/api/logout").catch(() => {}); signOut(); }
+      if (confirm(t("退出登录？"))) {
+        if (store.dirty) await sync();   // send the last edits first
+        if (store.dirty && !confirm(t("还有改动没传到服务器（可能没联网），退出后会丢失。仍然退出？"))) return;
+        await api("POST", "/api/logout").catch(() => {});
+        signOut();
+      }
       return;
     default: return;
   }
@@ -1282,7 +1296,7 @@ function renderSignIn() {
       <input id="si-email" type="text" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="${t("账号（邮箱或用户名）")}" autocomplete="username" value="${esc(store.email || "")}" required>
       <input id="si-password" type="password" placeholder="${signUpMode ? t("密码（至少 8 位）") : t("密码")}" autocomplete="${signUpMode ? "new-password" : "current-password"}" required>
       ${signUpMode ? `<input id="si-invite" type="text" placeholder="${t("邀请码")}" autocomplete="off" required>` : ""}
-      <button class="primary big" type="submit">${signUpMode ? t("注册") : t("登录")}</button>
+      <button class="primary big" id="si-submit" type="submit">${signUpMode ? t("注册") : t("登录")}</button>
       <p id="si-msg" class="error"></p>
     </form>
     <button class="link" id="si-switch">${signUpMode ? t("已经有账号？登录") : t("还没有账号？注册")}</button>
@@ -1294,13 +1308,30 @@ function renderSignIn() {
     e.preventDefault();
     const msg = $("#si-msg");
     msg.textContent = "";
+    const button = $("#si-submit"), label = button.textContent;
+    if (button.disabled) return;
+    button.disabled = true;
+    button.textContent = signUpMode ? t("正在注册…") : t("正在登录…");
+    const done = () => { button.disabled = false; button.textContent = label; };
     const data = { email: $("#si-email").value, password: $("#si-password").value, invite: $("#si-invite")?.value };
     try {
       const r = await api("POST", signUpMode ? "/api/signup" : "/api/login", data);
       if (r.status !== 200) {
-        msg.textContent = { wrong: t("账号或密码不对"), locked: t("密码错误次数太多，请 15 分钟后再试"), email_taken: t("这个账号已经被注册了"),
+        msg.textContent = { wrong: t("密码不对，还可以再试 {} 次", r.body.left ?? 1), no_account: t("没有这个账号，请检查拼写，或先注册"), locked: t("密码错误次数太多，请 15 分钟后再试"), email_taken: t("这个账号已经被注册了"),
           email: t("账号格式不对：用邮箱，或 3–32 位字母、数字、. _ -"), password_short: t("密码至少 8 位"), invite: t("邀请码不对") }[r.body.error] || t("出错了，请稍后再试");
+        done();
+        msg.classList.remove("shake"); void msg.offsetWidth; msg.classList.add("shake");
+        if (r.body.error === "wrong") { $("#si-password").select(); }
         return;
+      }
+      if (signUpMode) {
+        // Signed up: say so, then go to the sign-in page (account filled in) after 5 seconds.
+        // The session the sign-up created isn't kept; signing in makes a new one.
+        fetch("/api/logout", { method: "POST", headers: { Authorization: `Bearer ${r.body.token}` } }).catch(() => {});
+        store.email = r.body.email;
+        save("bp.email", store.email);
+        signUpMode = false;
+        return renderSignedUp();
       }
       store.token = r.body.token;
       store.email = r.body.email;
@@ -1313,9 +1344,32 @@ function renderSignIn() {
       render();
       await sync();
     } catch {
+      done();
       msg.textContent = t("连不上服务器，请检查网络");
     }
   };
+}
+
+let signedUpTimer = null;
+function renderSignedUp() {
+  let left = 5;
+  app.innerHTML = `
+  <div class="signin">
+    <img class="logo" src="/icon-192.png" alt="">
+    <div class="signed-up">
+      <div class="check">✓</div>
+      <h1>${t("注册成功！")}</h1>
+      <p>${t("你的账号：")}<b>${esc(store.email)}</b></p>
+      <p class="muted" id="su-count"></p>
+      <button class="primary big" id="su-go">${t("立即登录")}</button>
+    </div>
+  </div>`;
+  const go = () => { clearInterval(signedUpTimer); renderSignIn(); $("#si-password")?.focus(); };
+  const tick = () => { $("#su-count").textContent = t("{} 秒后自动跳转到登录页面", left); if (left-- <= 0) go(); };
+  clearInterval(signedUpTimer);
+  signedUpTimer = setInterval(tick, 1000);
+  tick();
+  $("#su-go").onclick = go;
 }
 
 function signOut() {

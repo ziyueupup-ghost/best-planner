@@ -56,7 +56,7 @@ const EN = {
   "还没有邮箱和电话，可以在设置 →「联系人」里添加。": "No email or phone yet — add them in Settings → Contacts.",
   "这个邮箱已经注册过了": "This email is already registered", "这里还没有任务": "No tasks here yet", "进展": "Progress", "进行中": "Doing",
   "连不上服务器，请检查网络": "Can't reach the server, check your connection", "退出登录": "Sign out", "退出登录？": "Sign out?",
-  "邀请码": "Invite code", "账号（邮箱或用户名）": "Account (email or user name)", "账号或密码不对": "Wrong account or password", "这个账号已经被注册了": "This account is already taken", "账号格式不对：用邮箱，或 3–32 位字母、数字、. _ -": "Use an email, or a user name of 3–32 letters, digits, . _ -", "邀请码不对": "Wrong invite code", "邮箱": "Email", "邮箱或密码不对": "Wrong email or password",
+  "邀请码": "Invite code", "还有改动没传到服务器（可能没联网），退出后会丢失。仍然退出？": "Some changes haven't reached the server yet (offline?). Signing out will lose them. Sign out anyway?", "注册成功！": "You're signed up!", "你的账号：": "Your account: ", "立即登录": "Sign in now", "{} 秒后自动跳转到登录页面": "Going to the sign-in page in {} s", "密码不对，还可以再试 {} 次": "Wrong password — {} tries left", "没有这个账号，请检查拼写，或先注册": "No such account — check the spelling, or sign up first", "正在登录…": "Signing in…", "正在注册…": "Signing up…", "账号（邮箱或用户名）": "Account (email or user name)", "账号或密码不对": "Wrong account or password", "这个账号已经被注册了": "This account is already taken", "账号格式不对：用邮箱，或 3–32 位字母、数字、. _ -": "Use an email, or a user name of 3–32 letters, digits, . _ -", "邀请码不对": "Wrong invite code", "邮箱": "Email", "邮箱或密码不对": "Wrong email or password",
   "邮箱格式不对": "That email doesn't look right", "里程碑": "Milestone", "重复": "Repeat", "重新打开": "Reopened", "附件": "Attachments",
   "需要更多信息": "Need more info", "需要跟进": "Follow up", "顺利进行": "On track", "高": "High", "默认": "Default",
   "完成子任务「{}」": "Completed subtask “{}”", "重新打开子任务「{}」": "Reopened subtask “{}”",

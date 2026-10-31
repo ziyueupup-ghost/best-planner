@@ -56,6 +56,7 @@ a { color: var(--accent); }
 .topbar h1 { font-size: 15px; font-weight: 600; color: var(--muted); margin: 0 4px 0 0; white-space: nowrap; }
 .status { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .status.offline { color: var(--danger); }
+@keyframes pop-in { from { opacity: 0; transform: scale(.6); } }
 .tools { display: flex; gap: 8px; margin-left: auto; align-items: center; }
 .tool-group { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: var(--panel); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, .04); }
 .tool { height: 30px; min-width: 30px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 13px; }
@@ -281,7 +282,14 @@ input[type=color] { width: 38px; height: 34px; padding: 2px; }
 .signin h1 { margin: 6px 0; }
 .signin form { display: flex; flex-direction: column; gap: 10px; margin: 24px 0 14px; }
 .signin input { padding: 12px; font-size: 16px; }
+.signed-up { margin-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.signed-up .check { width: 56px; height: 56px; border-radius: 50%; background: #1f8a4c; color: #fff; font-size: 30px; line-height: 56px; animation: pop-in .3s ease-out; }
+.signed-up p { margin: 2px 0; }
+.signed-up .big { margin-top: 14px; min-width: 200px; }
 .error { color: var(--danger); min-height: 1.2em; margin: 0; font-size: 14px; }
+#si-msg:not(:empty) { padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--danger) 12%, transparent); font-weight: 600; }
+#si-msg.shake { animation: shake .35s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 50% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
 .lang { margin-top: 30px; }
 
 /* Phones: inputs at 16px so iOS doesn't zoom in. */
