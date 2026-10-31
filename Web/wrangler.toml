@@ -1,0 +1,15 @@
+# Best Planner web version + sync server (Cloudflare Workers + D1).
+# Deploy: ./deploy.sh   (needs `npx wrangler login` once)
+name = "best-planner"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+# The web app (public/) is served as static files; /api/* goes to the worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "best-planner"
+database_id = "e22e6880-f76c-45fe-a23b-00a434151a77"

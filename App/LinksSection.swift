@@ -55,7 +55,7 @@ struct LinksSection: View {
     private func add(_ urls: [URL]) {
         for url in urls where !links.contains(where: { $0.url == url.absoluteString }) {
             links.append(TaskLink(title: url.isFileURL ? url.lastPathComponent : (url.host() ?? url.absoluteString),
-                                  url: url.absoluteString))
+                                  url: url.absoluteString, device: url.isFileURL ? TaskLink.thisDevice : nil))
         }
     }
 }

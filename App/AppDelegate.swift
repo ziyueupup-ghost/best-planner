@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             FocusFloat.shared.start()
             Updater.checkOnLaunch()
             WidgetRefresher.afterUpdate()
+            CloudSync.shared.start()
         }
     }
 }

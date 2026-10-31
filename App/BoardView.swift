@@ -25,6 +25,8 @@ struct BoardView: View {
     @State private var editing: PlannerTask?
     @State private var creatingIn: ColumnRef?
     @State private var showWidgetFilter = false
+    @State private var showCloud = false
+    @ObservedObject private var cloud = CloudSync.shared
     @State private var showSettings = false
     @State private var search = ""
     @State private var tagFilter: String?
@@ -128,6 +130,15 @@ struct BoardView: View {
                 .help(L("看板：按状态分列；日程：按日期看没完成的任务；回顾：日历看每天完成了什么，还有成就"))
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    showCloud.toggle()
+                } label: {
+                    Label(L("云同步"), systemImage: cloud.symbol)
+                }
+                .help(L("云同步：和网页版、手机、其他电脑同步"))
+                .popover(isPresented: $showCloud, arrowEdge: .bottom) {
+                    CloudSyncView()
+                }
                 Button {
                     showWidgetFilter.toggle()
                 } label: {

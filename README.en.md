@@ -2,7 +2,7 @@
 
 [中文说明](README.md)
 
-A macOS kanban planner with a desktop widget, plus an iPhone app that syncs with the Mac through iCloud Drive. Available in English and Chinese.
+A macOS kanban planner with a desktop widget, plus a web version (add it to your phone’s home screen) that syncs with the Mac through cloud sync. Available in English and Chinese.
 
 ## Download
 
@@ -16,7 +16,23 @@ A macOS kanban planner with a desktop widget, plus an iPhone app that syncs with
 
 **Language:** the app follows your system language. To switch, use the 🌐 button in the toolbar or **Best Planner → Language**, then reopen the app.
 
-## iPhone app
+## Web version and cloud sync
+
+The web version: https://best-planner.orgevery.workers.dev
+
+1. **Sign up** from the Mac app (toolbar ☁️ **Cloud Sync** → “No account? Sign up”) or on the website. The account can be an email or a user name (3–32 letters, digits, `. _ -`). Sign-up needs an invite code — ask the author. Your existing Mac tasks are uploaded right away.
+2. **Phone**: open the web address in Safari, sign in, then Share → **Add to Home Screen**. Sign in once more the first time you open it from the home screen; after that it stays signed in (as long as you use it at least once every six months).
+3. **Sync**: the Mac app uploads about 2 seconds after a change and checks for changes from other devices every 15 seconds; the website uploads at once and checks every 10 seconds while open. It works offline and catches up when you’re back online. Edits made on two devices at once are merged.
+
+Notes:
+- The web version has no focus timer, agenda, review, statistics or multi-select; the next copy of a repeating task is created when the Mac app is open.
+- Files attached on a Mac open only on that Mac; the website shows the device name and path, which you can copy.
+- There’s no self-service password reset; the admin runs `Web/reset-password.sh`.
+- Accounts can’t see each other’s tasks. iCloud Drive sync still works alongside cloud sync.
+
+## iPhone app (no longer updated)
+
+The iPhone app is no longer updated; use the web version above on your phone. The old instructions are kept below for reference.
 
 The iPhone app isn't on the App Store; you sign and install it yourself with a free Apple account. You need a Mac and a USB cable (no Xcode).
 
@@ -53,9 +69,9 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Review** view: a calendar of what you got done each day, daily notes, a streak counter and 18 achievements
 - **Focus timer** (pomodoro) with your own lengths and focus/break cycles, plus a draggable floating countdown when the window is closed or another app is in front, and an alarm when a period ends (choose the sound or turn it off); and statistics
 - Multi-select, duplicate, undo / redo (⌘Z), Recently Deleted (kept 30 days), adjustable text size
-- **iCloud Drive sync** between Macs, daily backups (kept 30 days)
+- **Cloud sync** (toolbar ☁️, since 1.7.0) between the Mac, the web version and your phone, plus **iCloud Drive sync** between Macs; daily backups (kept 30 days)
 - **Desktop widget** (small / medium / large) with subtasks you can tick right on the desktop; the **Widgets** toolbar button chooses which statuses and tags it shows (synced to the iPhone)
-- **iPhone app**: board, task editing, subtasks and packs, reminders and a home-screen widget, on the same data as the Mac (see “iPhone app” above)
+- **Web version**: the same board layout and tag styles as the Mac, task editing, subtasks, attachments (Mac files show the device and path), works offline (see “Web version and cloud sync” above)
 
 ## Building from source
 
@@ -82,5 +98,6 @@ UI text is written in Chinese in the code and wrapped in `L("…")`; English liv
 
 ### Notes
 
+- The web version runs on Cloudflare (Workers + D1): `cd Web && npx wrangler@4 deploy`. Set the invite code with `npx wrangler@4 secret put INVITE_CODE` — never in code. `Web/src/worker.js` is the server (accounts, sign-in, board storage, gzip in D1, versioned saves with three-way merge on conflict), `Web/public/` the site, `Web/schema.sql` the tables, `App/CloudSync.swift` the Mac client.
 - The widget extension must be linked with `-e _NSExtensionMain` (done in `build.sh`), otherwise macOS doesn't recognise it.
 - The widget's checkboxes need `Metadata.appintents`, which Xcode would generate; here `Resources/make_intents_metadata.py` writes it. Keep it in sync with `Widget/WidgetIntents.swift`.

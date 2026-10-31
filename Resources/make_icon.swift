@@ -1,10 +1,12 @@
 // Renders the app icon into an .iconset folder. Usage: swift make_icon.swift <out.iconset>
 // With a second argument "ios": full-bleed square PNGs for the iPhone app (iOS rounds
 // the corners itself) named AppIcon60x60@2x/@3x.png, written into <out>.
+// With "web": the same full-bleed squares for the web version (icon-180/192/512.png).
 import AppKit
 
 let out = URL(fileURLWithPath: CommandLine.arguments[1])
-let ios = CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "ios"
+let web = CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "web"
+let ios = web || (CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "ios")
 try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
 func render(_ px: Int) -> Data {
@@ -45,6 +47,10 @@ func render(_ px: Int) -> Data {
     return rep.representation(using: .png, properties: [:])!
 }
 
+if web {
+    for size in [180, 192, 512] { try! render(size).write(to: out.appendingPathComponent("icon-\(size).png")) }
+    exit(0)
+}
 if ios {
     try! render(120).write(to: out.appendingPathComponent("AppIcon60x60@2x.png"))
     try! render(180).write(to: out.appendingPathComponent("AppIcon60x60@3x.png"))

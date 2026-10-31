@@ -326,8 +326,15 @@ struct TaskLink: Codable, Identifiable, Hashable {
     var title: String
     /// "https://…" for web links, "file:///…" for files and folders.
     var url: String
+    /// For files: the name of the computer the file is on (shown by the web version).
+    var device: String?
 
     var isFile: Bool { url.hasPrefix("file://") }
+
+    #if os(macOS)
+    /// This Mac's name ("MacBook Air"), recorded with files attached here.
+    static let thisDevice = Host.current().localizedName ?? "Mac"
+    #endif
     var symbol: String { isFile ? "doc" : "link" }
 }
 

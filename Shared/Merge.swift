@@ -37,7 +37,7 @@ extension PlannerTask {
                      hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
         }
         r.links = mergeList(base: base.links, mine: mine.links, theirs: theirs.links) { b, m, t in
-            TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url))
+            TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url), device: pick(b.device, m.device, t.device))
         }
         return r
     }

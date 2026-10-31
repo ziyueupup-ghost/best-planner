@@ -46,6 +46,16 @@ final class BoardStore: ObservableObject {
         for i in board.tasks.indices where board.isDone(board.tasks[i]) && board.tasks[i].completedAt == nil {
             board.tasks[i].completedAt = board.tasks[i].updatedAt
         }
+        #if os(macOS)
+        // Files attached before links recorded their computer: if the file is here, it's this Mac's.
+        for i in board.tasks.indices {
+            for j in board.tasks[i].links.indices where board.tasks[i].links[j].isFile && board.tasks[i].links[j].device == nil {
+                if let url = URL(string: board.tasks[i].links[j].url), FileManager.default.fileExists(atPath: url.path) {
+                    board.tasks[i].links[j].device = TaskLink.thisDevice
+                }
+            }
+        }
+        #endif
         // Daily backup; plus one the first time a new version opens the data (before it
         // writes anything), so an update can never cost more than this copy.
         let versionKey = "lastBackedUpVersion"
@@ -628,6 +638,16 @@ final class BoardStore: ObservableObject {
                 board.tasks[i] = t
             }
         }
+        persist()
+    }
+
+    /// Changes merged in from the cloud server (the web version): shown and saved, but not
+    /// an undoable edit.
+    func applyCloud(_ merged: Board) {
+        guard merged != board else { return }
+        isRestoring = true
+        board = merged
+        isRestoring = false
         persist()
     }
 

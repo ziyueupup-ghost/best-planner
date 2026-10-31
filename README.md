@@ -2,7 +2,7 @@
 
 [English](README.en.md)
 
-macOS 看板任务管理 App，带桌面小组件；也有 iPhone 版，和 Mac 通过 iCloud 云盘同步。支持中文和英文。
+macOS 看板任务管理 App，带桌面小组件；还有网页版（手机上可以添加到主屏幕），和 Mac 通过云同步自动同步。支持中文和英文。
 
 ## 功能
 
@@ -32,11 +32,12 @@ macOS 看板任务管理 App，带桌面小组件；也有 iPhone 版，和 Mac 
 - 附件和链接：给任务添加文件、文件夹、网址，一键打开
 - 检查更新：每次打开软件自动检查，有新版本会弹窗提醒；点「立即更新」就自动下载、校验、安装并重新打开（菜单「Best Planner → 检查更新…」也可以手动检查）
 - iCloud 云盘同步（菜单「Best Planner → 使用 iCloud 云盘同步…」）：同一个 Apple ID 的几台 Mac 用同一份数据
+- 云同步（工具栏 ☁️「云同步」，从 1.7.0 开始）：注册一个账号，Mac、网页版和手机自动同步，改动十几秒内就能在别的设备上看到；两边同时改会自动合并
 - 每天自动备份，保留最近 30 天（菜单「Best Planner → 打开备份文件夹」）
 - 中文 / English：默认跟随系统语言，工具栏 🌐 按钮或菜单「Best Planner → 语言」切换，重新打开后生效
 - 所有修改自动保存
 - 桌面小组件（小 / 中 / 大）：显示子任务，可以直接打勾完成任务和子任务；工具栏「小组件」按钮可以选择显示哪些状态、只显示哪些标签（Mac 和 iPhone 同步）
-- iPhone 版：看板、编辑任务、子任务和子任务包、提醒、手机桌面小组件，和 Mac 用同一份数据（见下面「iPhone 版」）
+- 网页版：和 Mac 版一样的看板排版、标签样式、编辑任务、子任务、附件（电脑上的文件会显示是哪台电脑、什么路径），离线也能用（见下面「网页版和云同步」）
 
 ## 下载安装（给使用者）
 
@@ -48,7 +49,23 @@ macOS 看板任务管理 App，带桌面小组件；也有 iPhone 版，和 Mac 
 4. 桌面小组件：在桌面空白处右键 →「编辑小组件」→ 搜索「Best Planner」。
 5. 以后有新版本时，打开软件会弹窗提醒，点「立即更新」即可自动更新，不用再手动下载（从 1.5.0 开始）。
 
-## iPhone 版
+## 网页版和云同步
+
+网页版地址：https://best-planner.orgevery.workers.dev
+
+1. **注册**：在 Mac 版点工具栏 ☁️「云同步」→「还没有账号？注册」，或者直接在网页上注册。账号可以用邮箱，也可以用用户名（3–32 位字母、数字、`. _ -`）；注册需要邀请码，向作者要。注册后 Mac 上现有的任务会自动传上去。
+2. **手机**：用 Safari 打开网页版地址并登录，点分享按钮 →「添加到主屏幕」。从主屏幕图标第一次打开时要再登录一次，之后一直保持登录（半年内用过一次就不会掉线）。
+3. **同步**：Mac 版改动后约 2 秒上传，每 15 秒检查一次别的设备的改动；网页版改动后马上上传，开着时每 10 秒检查一次。没网时可以照常用，联网后自动补传。
+
+注意：
+- 网页版没有专注计时、日程、回顾、统计和多选；重复任务的下一次要等 Mac 版打开时生成。
+- 电脑上的文件附件只能在那台 Mac 上打开，网页上会显示设备名和路径，可以复制路径。
+- 忘记密码没法自己重设，找管理员运行 `Web/reset-password.sh`。
+- 每个账号的任务互相看不到。iCloud 云盘同步照常可用，和云同步互不影响。
+
+## iPhone 版（不再更新）
+
+iPhone 版已经不再更新，手机上请用上面的网页版。下面是旧的安装方法，留作参考。
 
 iPhone 版没有上架 App Store，用免费的 Apple 账户自己签名安装。需要一台 Mac 和一根数据线（不需要 Xcode）。
 
@@ -115,6 +132,11 @@ iPhone 版需要安装 Xcode（用它的 iOS SDK 和模拟器，不需要 Xcode 
 | `Shared/Localization.swift`、`Shared/English.swift` | 中英文切换和英文翻译 |
 | `build.sh` | 编译、签名、安装 Mac 版 |
 | `build-ios.sh` | 编译 iPhone 版（模拟器或 .ipa） |
+| `App/CloudSync.swift`、`App/CloudSyncView.swift` | Mac 版的云同步和登录窗口 |
+| `Web/src/worker.js` | 网页版服务器（Cloudflare Worker）：账号、登录、保存看板 |
+| `Web/public/` | 网页版界面（看板、标签样式、中英文、离线缓存） |
+| `Web/schema.sql` | 数据库表 |
+| `Web/reset-password.sh` | 给忘记密码的账号重设密码 |
 
 数据保存在 `~/Library/Application Support/Planner/planner.json`。
 
@@ -123,4 +145,5 @@ iPhone 版需要安装 Xcode（用它的 iOS SDK 和模拟器，不需要 Xcode 
 - 小组件必须用 `-e _NSExtensionMain` 链接（`build.sh` 里已经写好），否则系统会认不出它，组件一启动就退出。
 - 小组件上的打勾按钮靠 `Metadata.appintents` 让系统认识。Xcode 会自动生成，这里没有 Xcode，由 `make_intents_metadata.py` 生成；改了 `Widget/WidgetIntents.swift` 里的名字或参数，要同步改这个脚本。
 - App 用的是本机签名（ad-hoc），只能在这台电脑上运行。
+- 网页版部署在 Cloudflare（Workers + D1 数据库）：在 `Web/` 里运行 `npx wrangler@4 deploy`；邀请码用 `npx wrangler@4 secret put INVITE_CODE` 设置，不要写进代码。看板以 gzip 压缩后存进数据库，每次保存版本号加一，版本对不上时客户端会三方合并后重新保存。
 - iPhone 版被安装工具重新签名后，App 的 ID 和 App Group 名字会加上开发者团队编号（比如 `group.com.bestplanner.app.XXXXXXXXXX`），App 会按自己的 ID 推算出 App Group，小组件靠它共享数据。
