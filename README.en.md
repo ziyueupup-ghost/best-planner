@@ -67,7 +67,7 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Quick Add** from anywhere with **⌃⌥N** or the menu bar icon — understands `Send draft tomorrow 3pm #Work !urgent @Doing`
 - **Agenda** view: open tasks by date, across all statuses
 - **Review** view: a calendar of what you got done each day, daily notes, a streak counter and 18 achievements
-- **Focus timer** (pomodoro) with your own lengths and focus/break cycles, plus a draggable floating countdown when the window is closed or another app is in front, and an alarm when a period ends (choose the sound or turn it off); and statistics
+- **Focus timer** (pomodoro) with your own lengths and focus/break cycles, plus a draggable floating countdown when the window is closed or another app is in front (the timer bar inside the window can be dragged anywhere too; right-click to put it back), and an alarm when a period ends (choose the sound or turn it off); and statistics
 - Multi-select, duplicate, undo / redo (⌘Z), Recently Deleted (kept 30 days), adjustable text size
 - **Cloud sync** (toolbar ☁️, since 1.7.0) between the Mac, the web version and your phone, plus **iCloud Drive sync** between Macs; daily backups (kept 30 days)
 - **Desktop widget** (small / medium / large) with subtasks you can tick right on the desktop; the **Widgets** toolbar button chooses which statuses and tags it shows (synced to the iPhone)

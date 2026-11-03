@@ -97,10 +97,10 @@ struct BoardView: View {
         .overlay(alignment: .top) { achievementBanner }
         .onChange(of: store.board.tasks) { _, _ in announceAchievements() }
         .onAppear { announceAchievements() }
-        .overlay(alignment: .bottomLeading) {
-            FocusBar()
-                .padding(14)
-                .padding(.bottom, liveSelection.isEmpty ? 0 : 56)
+        .overlay {
+            GeometryReader { geo in
+                FocusBar(area: geo.size, bottomInset: liveSelection.isEmpty ? 0 : 56)
+            }
         }
         .onExitCommand { selection.clear() }
         .alert(L("删除选中的 \(liveSelection.count) 个任务？"), isPresented: $confirmBatchDelete) {

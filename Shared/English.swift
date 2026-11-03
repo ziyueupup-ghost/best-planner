@@ -703,6 +703,7 @@ enum English {
         "输入名字，回车添加；或点下面用过的人": "Type a name and press Return, or pick someone below",
         "名字": "Name",
         "邮箱": "Email",
+        "放回左下角": "Move back to bottom left",
         "密码不对，还可以再试 {} 次": "Wrong password — {} tries left",
         "没有这个账号，请检查拼写，或先注册": "No such account — check the spelling, or sign up first",
         "注册成功！欢迎你，{}": "You're signed up! Welcome, {}",

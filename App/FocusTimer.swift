@@ -151,12 +151,64 @@ final class FocusTimer: ObservableObject {
     }
 }
 
-/// Bar at the bottom-left of the window while focusing.
+/// Bar shown in the window while focusing: bottom-left at first, drag it anywhere in the
+/// window (the spot is remembered, as a fraction of the window so resizing keeps it in view).
 struct FocusBar: View {
     @ObservedObject var timer = FocusTimer.shared
+    /// The space it can move in, and how much to keep clear at the bottom (the batch bar).
+    var area: CGSize
+    var bottomInset: CGFloat = 0
+
+    /// Center of the bar as a fraction of `area`; negative = the default bottom-left spot.
+    @AppStorage("focusBarX") private var fractionX = -1.0
+    @AppStorage("focusBarY") private var fractionY = -1.0
+    @State private var size = CGSize(width: 300, height: 44)
+    @State private var dragStart: CGPoint?
+
+    private let margin: CGFloat = 14
+
+    private var center: CGPoint {
+        let point = fractionX < 0 || fractionY < 0
+            ? CGPoint(x: margin + size.width / 2, y: area.height - margin - bottomInset - size.height / 2)
+            : CGPoint(x: fractionX * area.width, y: fractionY * area.height)
+        return clamped(point)
+    }
+
+    /// Keeps the whole bar inside the window.
+    private func clamped(_ p: CGPoint) -> CGPoint {
+        let halfW = size.width / 2, halfH = size.height / 2, edge: CGFloat = 4
+        return CGPoint(x: min(max(p.x, halfW + edge), max(halfW + edge, area.width - halfW - edge)),
+                       y: min(max(p.y, halfH + edge), max(halfH + edge, area.height - halfH - edge)))
+    }
 
     var body: some View {
-        if timer.isRunning {
+        if timer.isRunning && area.width > 0 {
+            bar
+                .background(GeometryReader { geo in
+                    Color.clear
+                        .onAppear { size = geo.size }
+                        .onChange(of: geo.size) { _, new in size = new }
+                })
+                .position(center)
+                .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .local)
+                    .onChanged { value in
+                        let start = dragStart ?? center
+                        if dragStart == nil { dragStart = start }
+                        let p = clamped(CGPoint(x: start.x + value.translation.width, y: start.y + value.translation.height))
+                        fractionX = p.x / area.width
+                        fractionY = p.y / area.height
+                    }
+                    .onEnded { _ in dragStart = nil })
+                .onHover { inside in if inside { NSCursor.openHand.push() } else { NSCursor.pop() } }
+                .contextMenu {
+                    Button(L("放回左下角")) { fractionX = -1; fractionY = -1 }
+                        .disabled(fractionX < 0)
+                }
+                .help(L("按住拖动可以移到任意位置"))
+        }
+    }
+
+    private var bar: some View {
             HStack(spacing: 10) {
                 Text(timer.isResting ? "☕️" : "🍅").scaledFont(.title3)
                 VStack(alignment: .leading, spacing: 1) {
@@ -184,7 +236,7 @@ struct FocusBar: View {
             .overlay(Capsule().strokeBorder(Color.primary.opacity(0.12)))
             .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
             .frame(maxWidth: 360)
-        }
+            .fixedSize()
     }
 }
 

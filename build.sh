@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.7.1"
+VERSION="1.7.2"
 MODE="${1:-install}"
 APP_ID="com.bestplanner.app"
 WIDGET_ID="$APP_ID.widget"
