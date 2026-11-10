@@ -18,6 +18,30 @@ final class BoardStore: ObservableObject {
     @Published private(set) var board: Board {
         willSet { registerUndo(from: board, to: newValue) }
     }
+
+    /// A move held back because a task is still waiting for another one (Shared/Dependencies.swift);
+    /// the board asks whether to move anyway.
+    struct BlockedMove: Identifiable {
+        let id = UUID()
+        let message: String
+        let perform: () -> Void
+    }
+    @Published var blockedMove: BlockedMove?
+
+    /// Runs `perform` at once, or (when it would start or finish a task before what it waits
+    /// for) only after the user confirms.
+    private func checkDependencies(_ ids: [String], to columnID: String, then perform: @escaping () -> Void) {
+        let lines = ids.compactMap { id -> String? in
+            guard let t = task(id) else { return nil }
+            let unmet = board.unmetDependencies(of: t, movingTo: columnID)
+            return unmet.isEmpty ? nil : "「\(t.title)」\(board.describe(unmet))"
+        }
+        if lines.isEmpty { perform() } else { blockedMove = BlockedMove(message: lines.joined(separator: "\n"), perform: perform) }
+    }
+
+    /// Tasks waiting for others, as of the last save: their status and the dependencies
+    /// not yet met. Used to say "可以开始了" when the last one is met.
+    private var waiting: [String: (columnID: String, unmet: Set<String>)]?
     private var pendingSave: Task<Void, Never>?
 
     // MARK: Undo
@@ -82,6 +106,7 @@ final class BoardStore: ObservableObject {
         syncedBoard = board
         knownFileDate = PlannerStorage.modificationDate()
         ReminderScheduler.shared.reschedule(board)
+        announceUnblocked()   // first call: just notes what's waiting
         #if os(macOS)
         let willQuit = NSApplication.willTerminateNotification, didActivate = NSApplication.didBecomeActiveNotification
         #else
@@ -218,10 +243,12 @@ final class BoardStore: ObservableObject {
     /// Moves a task to another column, placing it at the top.
     func move(_ id: String, to columnID: String) {
         guard board.column(columnID) != nil, task(id)?.columnID != columnID else { return }
-        let top = topOrder(in: columnID)
-        modify(id) {
-            $0.columnID = columnID
-            $0.order = top
+        checkDependencies([id], to: columnID) { [self] in
+            let top = topOrder(in: columnID)
+            modify(id) {
+                $0.columnID = columnID
+                $0.order = top
+            }
         }
     }
 
@@ -234,6 +261,14 @@ final class BoardStore: ObservableObject {
         guard id != targetID, task(id) != nil else { return }
         let column = targetID.flatMap { task($0)?.columnID } ?? columnID
         guard board.column(column) != nil else { return }
+        if task(id)?.columnID != column {
+            checkDependencies([id], to: column) { [self] in placeNow(id, before: targetID, in: column) }
+        } else {
+            placeNow(id, before: targetID, in: column)
+        }
+    }
+
+    private func placeNow(_ id: String, before targetID: String?, in column: String) {
         setSortMode(.manual)
         if task(id)?.columnID != column {
             modify(id) { $0.columnID = column }
@@ -369,15 +404,19 @@ final class BoardStore: ObservableObject {
 
     /// Moves selected tasks to a status (to the top there).
     func moveTasks(_ ids: Set<String>, to columnID: String) {
-        board.moveTasks(ids, to: columnID, placement: .top)
-        persist()
+        checkDependencies(Array(ids), to: columnID) { [self] in
+            board.moveTasks(ids, to: columnID, placement: .top)
+            persist()
+        }
     }
 
     /// Drag-and-drop of several tasks: above `targetID`, or at the end of the column.
     func placeTasks(_ ids: Set<String>, before targetID: String?, in columnID: String) {
-        setSortMode(.manual)
-        board.moveTasks(ids, to: columnID, placement: targetID.map { .before($0) } ?? .bottom)
-        persist()
+        checkDependencies(Array(ids), to: columnID) { [self] in
+            setSortMode(.manual)
+            board.moveTasks(ids, to: columnID, placement: targetID.map { .before($0) } ?? .bottom)
+            persist()
+        }
     }
 
     func shiftTasks(_ ids: Set<String>, by offset: Int) {
@@ -515,8 +554,12 @@ final class BoardStore: ObservableObject {
 
     /// Done ⇄ not done (moves between the done column and the last open one).
     func toggleDone(_ id: String) {
-        board.toggleTaskDone(id)
-        persist()
+        let finish = task(id).map { !board.isDone($0) } ?? false
+        let doneColumn = board.columns.first(where: \.isDone)?.id ?? ""
+        checkDependencies(finish ? [id] : [], to: doneColumn) { [self] in
+            board.toggleTaskDone(id)
+            persist()
+        }
     }
 
     // MARK: Focus
@@ -691,6 +734,56 @@ final class BoardStore: ObservableObject {
         #endif
         WidgetCenter.shared.reloadAllTimelines()
         ReminderScheduler.shared.reschedule(board)
+        announceUnblocked()
+    }
+
+    // MARK: Gantt chart
+
+    /// Moves / stretches a task's bar (its 开始 and 截止 dates).
+    func setGanttSpan(_ id: String, start: Date, end: Date) {
+        modify(id) { $0.setGanttSpan(start: start, end: end) }
+    }
+
+    /// `id` waits for `otherID` (drawn as a link on the Gantt chart). No loops, no doubles.
+    func addDependency(_ id: String, waitsFor otherID: String, kind: DependencyKind = .finishToStart) {
+        guard id != otherID, let t = task(id), !t.dependencies.contains(where: { $0.taskID == otherID }),
+              !board.wouldLoop(id, waitingFor: otherID) else { return }
+        modify(id) { $0.dependencies.append(TaskDependency(taskID: otherID, kind: kind)) }
+    }
+
+    /// Replaces the task's list of tasks it waits for (the Gantt table's 前置 column).
+    func setDependencies(_ id: String, _ dependencies: [TaskDependency]) {
+        modify(id) { $0.dependencies = dependencies }
+    }
+
+    func setDependencyKind(_ id: String, _ dependencyID: String, _ kind: DependencyKind) {
+        modify(id) { t in
+            if let i = t.dependencies.firstIndex(where: { $0.id == dependencyID }) { t.dependencies[i].kind = kind }
+        }
+    }
+
+    func removeDependency(_ id: String, _ dependencyID: String) {
+        modify(id) { $0.dependencies.removeAll { $0.id == dependencyID } }
+    }
+
+    /// Tells the user when a task stops waiting because what it waited for happened
+    /// (not when it was moved anyway or the dependency was removed).
+    private func announceUnblocked() {
+        var now: [String: (columnID: String, unmet: Set<String>)] = [:]
+        for t in board.tasks {
+            let w = board.waitingOn(t)
+            if !w.isEmpty { now[t.id] = (t.columnID, Set(w.map(\.id))) }
+        }
+        if let before = waiting {
+            for (id, was) in before where now[id] == nil {
+                guard let t = task(id), !board.isDone(t), t.columnID == was.columnID,
+                      was.unmet.isSubset(of: Set(t.dependencies.map(\.id))) else { continue }
+                ReminderScheduler.shared.notifyNow(
+                    title: board.isStarted(t) ? L("✅ 可以完成了") : L("▶️ 可以开始了"),
+                    body: L("「\(t.title)」等的任务已经好了"), taskID: t.id)
+            }
+        }
+        waiting = now
     }
 
     // MARK: iPhone: widget copy and iCloud folder

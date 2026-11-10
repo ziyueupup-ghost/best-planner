@@ -411,6 +411,13 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     var contactIDs: [String] = []
     /// Planned moves to other statuses; each is removed once done.
     var autoMoves: [AutoMove] = []
+    /// 停留提醒: remind when this task has stayed in one status this many days; nil = off.
+    var staleDays: Int?
+    /// Other tasks this one waits for (see Shared/Dependencies.swift).
+    var dependencies: [TaskDependency] = []
+
+    /// The day counts offered for 停留提醒.
+    static let staleChoices = [1, 2, 3, 5, 7, 10, 14, 21, 30]
 
     /// The next planned move (from a date's "到时移到", or an older planned move), if any.
     var nextAutoMove: AutoMove? {
@@ -421,6 +428,12 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     var focusSessions: [FocusSession] = []
 
     var focusMinutes: Int { focusSessions.reduce(0) { $0 + $1.minutes } }
+
+    /// When the task entered its current status: the last move in its history
+    /// (or its creation, when there's no record of a move).
+    var inColumnSince: Date {
+        history.last { [.created, .moved, .completed, .reopened].contains($0.kind) && $0.field == nil }?.date ?? createdAt
+    }
 
     init(title: String, columnID: String) {
         self.title = title
@@ -454,6 +467,8 @@ struct PlannerTask: Codable, Identifiable, Hashable {
         flagIDs = (try? c.decodeIfPresent([String].self, forKey: .flagIDs)) ?? []
         contactIDs = (try? c.decodeIfPresent([String].self, forKey: .contactIDs)) ?? []
         autoMoves = (try? c.decodeIfPresent([AutoMove].self, forKey: .autoMoves)) ?? []
+        staleDays = try? c.decodeIfPresent(Int.self, forKey: .staleDays)
+        dependencies = (try? c.decodeIfPresent([TaskDependency].self, forKey: .dependencies)) ?? []
         focusSessions = (try? c.decodeIfPresent([FocusSession].self, forKey: .focusSessions)) ?? []
     }
 
@@ -615,6 +630,19 @@ struct Board: Codable, Equatable {
 
     func isDone(_ task: PlannerTask) -> Bool { column(task.columnID)?.isDone ?? false }
 
+    /// When the task becomes "stale" (停留提醒): its days in the current status are up.
+    /// Not for finished tasks.
+    func staleDate(_ task: PlannerTask) -> Date? {
+        guard let limit = task.staleDays, limit > 0, !isDone(task) else { return nil }
+        return Calendar.current.date(byAdding: .day, value: limit, to: task.inColumnSince)
+    }
+
+    /// Whole days the task has been in its status, once that's past its 停留提醒.
+    func staleDays(_ task: PlannerTask, now: Date = Date()) -> Int? {
+        guard let due = staleDate(task), due <= now else { return nil }
+        return Calendar.current.dateComponents([.day], from: task.inColumnSince, to: now).day
+    }
+
     func isOverdue(_ date: TaskDate, of task: PlannerTask) -> Bool {
         date.kind == .deadline && !isDone(task)
             && (date.hasTime ? date.date < Date() : date.date < Calendar.current.startOfDay(for: Date()))
@@ -693,7 +721,11 @@ enum PlannerStorage {
     }
 
     static var localDirectory: URL {
-        realHome.appendingPathComponent("Library/Application Support/Planner", isDirectory: true)
+        // For trying things out on test data without touching the real board.
+        if let dir = ProcessInfo.processInfo.environment["PLANNER_DATA_DIR"], !dir.isEmpty {
+            return URL(fileURLWithPath: dir, isDirectory: true)
+        }
+        return realHome.appendingPathComponent("Library/Application Support/Planner", isDirectory: true)
     }
 
     static var iCloudDriveRoot: URL {
@@ -1037,7 +1069,21 @@ extension Color {
 
 extension Date {
     var shortLabel: String { formatted(.dateTime.month(.defaultDigits).day()) }
-    var shortTimeLabel: String { formatted(.dateTime.month(.defaultDigits).day().hour().minute()) }
+    var shortTimeLabel: String { formatted(Date.FormatStyle.dateTime.month(.defaultDigits).day().hour().minute().locale(.clock24)) }
     var dayLabel: String { formatted(.dateTime.year().month().day()) }
-    var dayTimeLabel: String { formatted(.dateTime.year().month().day().hour().minute()) }
+    var dayTimeLabel: String { formatted(Date.FormatStyle.dateTime.year().month().day().hour().minute().locale(.clock24)) }
+}
+
+extension Locale {
+    /// The user's region but with a 24-hour clock (15:30, not 下午 3:30), for time pickers and labels.
+    static var clock24: Locale {
+        var c = Locale.Components(locale: .current)
+        c.hourCycle = .zeroToTwentyThree
+        return Locale(components: c)
+    }
+}
+
+extension View {
+    /// Date pickers with a 24-hour clock: no AM/PM field to step through.
+    func clock24() -> some View { environment(\.locale, .clock24) }
 }

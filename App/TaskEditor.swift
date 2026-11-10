@@ -16,6 +16,8 @@ struct TaskEditor: View {
     @State private var confirmDelete = false
     @State private var exists: Bool
     @State private var deleted = false
+    /// A status chosen in the picker that would start/finish the task too early (asks first).
+    @State private var pendingColumn: String?
     let isNew: Bool
 
     init(task: PlannerTask, isNew: Bool) {
@@ -39,6 +41,7 @@ struct TaskEditor: View {
                 flagSection
                 ContactSection(contactIDs: $task.contactIDs)
                 dateSection
+                dependencySection
                 if !task.autoMoves.isEmpty { autoMoveSection }
                 subtaskSection
                 LinksSection(links: $task.links)
@@ -114,10 +117,24 @@ struct TaskEditor: View {
                         }
                     }
             }
-            Picker(L("状态"), selection: $task.columnID) {
+            Picker(L("状态"), selection: Binding(get: { task.columnID }, set: { new in
+                if store.board.unmetDependencies(of: task, movingTo: new).isEmpty { task.columnID = new } else { pendingColumn = new }
+            })) {
                 ForEach(store.columns) { c in
                     Text(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)").tag(c.id)
                 }
+            }
+            .alert(L("这个任务还在等别的任务"), isPresented: Binding(
+                get: { pendingColumn != nil },
+                set: { if !$0 { pendingColumn = nil } }
+            )) {
+                Button(L("仍然移动")) {
+                    if let c = pendingColumn { task.columnID = c }
+                    pendingColumn = nil
+                }
+                Button(L("取消"), role: .cancel) { pendingColumn = nil }
+            } message: {
+                Text(store.board.describe(pendingColumn.map { store.board.unmetDependencies(of: task, movingTo: $0) } ?? []))
             }
             let levels = store.board.priorities
             if levels.count <= 5 {
@@ -206,6 +223,68 @@ struct TaskEditor: View {
         .help(L("到了这个日期 / 时间，自动把任务移到选定的状态（没有时间的话是那天一开始）"))
     }
 
+    /// 前后顺序 (Gantt-style dependencies): which tasks this one waits for.
+    private var dependencySection: some View {
+        let board = store.board
+        let others = board.tasks.filter { t in
+            t.id != task.id && !board.isDone(t) && !task.dependencies.contains { $0.taskID == t.id }
+                && !board.wouldLoop(task.id, waitingFor: t.id)
+        }
+        let waitingForThis = board.dependents(of: task.id)
+        return Section {
+            ForEach($task.dependencies) { $d in
+                let other = board.tasks.first { $0.id == d.taskID }
+                let met = board.isMet(d)
+                HStack(spacing: 8) {
+                    Image(systemName: met ? "checkmark.circle.fill" : "hourglass")
+                        .foregroundStyle(met ? Color.green : Color.orange)
+                        .frame(width: 18)
+                        .help(met ? L("已经满足") : L("还在等"))
+                    Text(other?.title ?? L("已删除的任务"))
+                        .foregroundStyle(other == nil ? .secondary : .primary)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Button {
+                        task.dependencies.removeAll { $0.id == d.id }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(L("去掉"))
+                }
+            }
+            Menu {
+                ForEach(store.columns.filter { !$0.isDone }) { c in
+                    let list = others.filter { $0.columnID == c.id }
+                    if !list.isEmpty {
+                        Section(c.icon.isEmpty ? c.name : "\(c.icon) \(c.name)") {
+                            ForEach(list) { t in
+                                Button(t.title.isEmpty ? L("（无标题）") : t.title) {
+                                    task.dependencies.append(TaskDependency(taskID: t.id))
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(L("选择要先完成的任务"), systemImage: "plus")
+            }
+            .fixedSize()
+            .disabled(others.isEmpty)
+            if !waitingForThis.isEmpty {
+                Text(L("在等这个任务的：\(waitingForThis.map { "「\($0.title)」" }.joined(separator: "、"))"))
+                    .scaledFont(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text(L("要先完成的任务"))
+        } footer: {
+            Text(L("上面这些任务都完成了，这个任务才能开始。还没好时卡片上会标出来，硬要开始会先问你；它们完成了会发通知。"))
+                .scaledFont(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     /// Planned moves: "at this date/time, move to that status".
     private var autoMoveSection: some View {
         Section {
@@ -214,6 +293,7 @@ struct TaskEditor: View {
                     Image(systemName: "forward.fill").foregroundStyle(.secondary).frame(width: 18)
                     DatePicker("", selection: $m.date, displayedComponents: m.hasTime ? [.date, .hourAndMinute] : [.date])
                         .labelsHidden()
+                        .clock24()
                     Toggle(L("时间"), isOn: $m.hasTime)
                         .toggleStyle(.checkbox)
                     Text(L("移到"))
@@ -300,6 +380,7 @@ struct TaskEditor: View {
                         DatePicker("", selection: $d.date,
                                    displayedComponents: d.showsTime ? [.date, .hourAndMinute] : [.date])
                             .labelsHidden()
+                            .clock24()
                             .fixedSize()
                         if d.kind != .reminder {
                             Button {
@@ -353,6 +434,17 @@ struct TaskEditor: View {
                 Label(L("添加日期"), systemImage: "calendar.badge.plus")
             }
             .fixedSize()
+            Picker(selection: $task.staleDays) {
+                Text(L("不提醒")).tag(Int?.none)
+                Divider()
+                ForEach(PlannerTask.staleChoices, id: \.self) { n in
+                    Text(L("同一个状态待超过 \(n) 天就提醒")).tag(Int?.some(n))
+                }
+            } label: {
+                Label(L("停留提醒"), systemImage: "hourglass")
+            }
+            .fixedSize()
+            .help(L("这个任务在同一个状态里（比如「进行中」）待太久时，卡片上会标出来，到时也会发通知；移到别的状态就重新计时"))
         } header: {
             Text(L("日期"))
         } footer: {
@@ -443,6 +535,7 @@ struct TaskEditor: View {
                         Label(L("完成日期"), systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     }
+                    .clock24()
                 }
                 HStack {
                     Image(systemName: "text.bubble").foregroundStyle(.secondary)

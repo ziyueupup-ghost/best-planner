@@ -129,7 +129,7 @@ struct QuickAddView: View {
                 }
                 if let d = p.date {
                     chip("\(p.dateKind == .reminder ? L("⏰ 提醒") : L("📌 截止")) "
-                         + (p.hasTime ? d.formatted(.dateTime.month().day().weekday().hour().minute())
+                         + (p.hasTime ? d.formatted(Date.FormatStyle.dateTime.month().day().weekday().hour().minute().locale(.clock24))
                                       : d.formatted(.dateTime.month().day().weekday())),
                          p.dateKind.color)
                 }

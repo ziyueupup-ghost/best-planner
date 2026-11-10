@@ -72,6 +72,8 @@ struct BoardView: View {
                 AgendaView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
             } else if viewMode == "review" {
                 ReviewView(onEdit: { editing = $0 })
+            } else if viewMode == "gantt" {
+                GanttView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
             } else {
                 boardColumns
             }
@@ -124,10 +126,11 @@ struct BoardView: View {
                 Picker(L("视图"), selection: $viewMode) {
                     Label(L("看板"), systemImage: "rectangle.split.3x1").tag("board")
                     Label(L("日程"), systemImage: "calendar.day.timeline.left").tag("agenda")
+                    Label(L("甘特图"), systemImage: "chart.bar.xaxis").tag("gantt")
                     Label(L("回顾"), systemImage: "calendar").tag("review")
                 }
                 .pickerStyle(.segmented)
-                .help(L("看板：按状态分列；日程：按日期看没完成的任务；回顾：日历看每天完成了什么，还有成就"))
+                .help(L("看板：按状态分列；日程：按日期看没完成的任务；甘特图：按开始和截止日期排成横条，拖动改日期、连线设前后顺序；回顾：日历看每天完成了什么，还有成就"))
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -197,6 +200,18 @@ struct BoardView: View {
 
     private func withSheets(_ content: some View) -> some View {
         content
+        .alert(L("这个任务还在等别的任务"), isPresented: Binding(
+            get: { store.blockedMove != nil },
+            set: { if !$0 { store.blockedMove = nil } }
+        ), presenting: store.blockedMove) { blocked in
+            Button(L("仍然移动")) {
+                store.blockedMove = nil
+                withAnimation(.snappy) { blocked.perform() }
+            }
+            Button(L("取消"), role: .cancel) { store.blockedMove = nil }
+        } message: { blocked in
+            Text(blocked.message)
+        }
         .sheet(item: $creatingIn) { ref in
             TaskEditor(task: newTask(in: ref.id), isNew: true)
                 .environmentObject(store)
@@ -226,20 +241,9 @@ struct BoardView: View {
         }
     }
 
-    private func withEvents(_ content: some View) -> some View {
+    /// The iCloud sync confirmation and error alerts (split out so the compiler copes).
+    private func withSyncAlerts(_ content: some View) -> some View {
         content
-        .onReceive(NotificationCenter.default.publisher(for: .newTaskRequested)) { _ in
-            creatingIn = store.columns.first.map { ColumnRef(id: $0.id) }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .settingsRequested)) { _ in
-            showSettings = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .trashRequested)) { _ in
-            showTrash = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iCloudToggleRequested)) { _ in
-            confirmICloud = true
-        }
         .alert(store.usesICloud ? L("关闭 iCloud 云盘同步？") : L("使用 iCloud 云盘同步？"), isPresented: $confirmICloud) {
             Button(store.usesICloud ? L("关闭同步") : L("开始同步")) {
                 do { try store.setICloudSync(!store.usesICloud) } catch { iCloudError = error.localizedDescription }
@@ -258,6 +262,22 @@ struct BoardView: View {
             Button(L("好")) {}
         } message: {
             Text(iCloudError ?? "")
+        }
+    }
+
+    private func withEvents(_ content: some View) -> some View {
+        withSyncAlerts(content)
+        .onReceive(NotificationCenter.default.publisher(for: .newTaskRequested)) { _ in
+            creatingIn = store.columns.first.map { ColumnRef(id: $0.id) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsRequested)) { _ in
+            showSettings = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .trashRequested)) { _ in
+            showTrash = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .iCloudToggleRequested)) { _ in
+            confirmICloud = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .openTaskRequested)) { note in
             guard let id = note.object as? String, let task = store.task(id) else { return }
@@ -854,6 +874,31 @@ struct TaskCard: View {
                 .scaledFont(.caption)
             }
 
+            let waiting = board.waitingOn(task)
+            if !waiting.isEmpty {
+                Label(board.describe(waiting), systemImage: "link")
+                    .scaledFont(.caption, weight: .medium)
+                    .foregroundStyle(.purple)
+                    .lineLimit(2)
+                    .help(L("前后顺序：在任务编辑窗口里设置"))
+            }
+            let waitingForThis = board.dependents(of: task.id).filter { t in
+                t.dependencies.contains { $0.taskID == task.id && !board.isMet($0) }
+            }
+            if !waitingForThis.isEmpty {
+                Label(L("\(waitingForThis.count) 个任务在等它"), systemImage: "link")
+                    .scaledFont(.caption)
+                    .foregroundStyle(.secondary)
+                    .help(waitingForThis.map(\.title).joined(separator: "\n"))
+            }
+
+            if let days = board.staleDays(task) {
+                Label(L("在「\(board.column(task.columnID)?.name ?? "")」待了 \(days) 天"), systemImage: "hourglass")
+                    .scaledFont(.caption, weight: .medium)
+                    .foregroundStyle(.orange)
+                    .help(L("停留提醒：在这个状态里待的天数超过了设定（在任务编辑窗口里可以改或关掉）"))
+            }
+
             if task.focusMinutes > 0 {
                 Text(L("🍅 专注 \(task.focusMinutes) 分钟"))
                     .scaledFont(.caption)
@@ -1110,7 +1155,7 @@ struct DateLine: View {
             .foregroundStyle(.secondary)
             .fixedSize()
         Text(date.showsTime
-             ? date.date.formatted(.dateTime.month(.defaultDigits).day().hour().minute())
+             ? date.date.formatted(Date.FormatStyle.dateTime.month(.defaultDigits).day().hour().minute().locale(.clock24))
              : date.date.formatted(.dateTime.year(.twoDigits).month(.defaultDigits).day()))
             .foregroundStyle(overdue ? .red : .primary)
             .fontWeight(overdue ? .semibold : .regular)

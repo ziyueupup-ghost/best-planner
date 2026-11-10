@@ -23,6 +23,10 @@ extension PlannerTask {
         r.flagIDs = mergeIDs(base: base.flagIDs, mine: mine.flagIDs, theirs: theirs.flagIDs)
         r.contactIDs = mergeIDs(base: base.contactIDs, mine: mine.contactIDs, theirs: theirs.contactIDs)
         r.notificationsOff = pick(base.notificationsOff, mine.notificationsOff, theirs.notificationsOff)
+        r.staleDays = pick(base.staleDays, mine.staleDays, theirs.staleDays)
+        r.dependencies = mergeList(base: base.dependencies, mine: mine.dependencies, theirs: theirs.dependencies) { b, m, t in
+            TaskDependency(id: t.id, taskID: pick(b.taskID, m.taskID, t.taskID), kind: pick(b.kind, m.kind, t.kind))
+        }
         r.tagIDs = mergeIDs(base: base.tagIDs, mine: mine.tagIDs, theirs: theirs.tagIDs)
         r.subtasks = mergeList(base: base.subtasks, mine: mine.subtasks, theirs: theirs.subtasks) { b, m, t in
             Subtask(id: t.id, title: pick(b.title, m.title, t.title), isDone: pick(b.isDone, m.isDone, t.isDone),
@@ -48,7 +52,8 @@ extension PlannerTask {
         title == other.title && notes == other.notes && columnID == other.columnID && priorityID == other.priorityID
             && tagIDs == other.tagIDs && subtasks == other.subtasks && dates == other.dates && links == other.links
             && colorHex == other.colorHex && backgroundHex == other.backgroundHex && recurrence == other.recurrence && repeatRule == other.repeatRule && flagIDs == other.flagIDs && contactIDs == other.contactIDs && autoMoves == other.autoMoves
-            && notificationsOff == other.notificationsOff
+            && notificationsOff == other.notificationsOff && staleDays == other.staleDays
+            && dependencies == other.dependencies
     }
 }
 

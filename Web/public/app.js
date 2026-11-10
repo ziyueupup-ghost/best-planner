@@ -181,7 +181,7 @@ function normalize(b) {
   for (const k of ["columns", "tags", "tasks", "trash", "priorities", "subtaskPacks", "flags", "contacts", "expandedGroups"]) b[k] ||= [];
   b.dayNotes ||= {};
   for (const task of [...b.tasks, ...b.trash]) {
-    for (const k of ["tagIDs", "dates", "subtasks", "history", "links", "flagIDs", "contactIDs", "autoMoves", "focusSessions"]) task[k] ||= [];
+    for (const k of ["tagIDs", "dates", "subtasks", "history", "links", "flagIDs", "contactIDs", "autoMoves", "focusSessions", "dependencies"]) task[k] ||= [];
   }
   return b;
 }
@@ -226,7 +226,7 @@ const dueOf = (d) => (showsTime(d) ? new Date(d.date) : startOfDay(new Date(d.da
 /** Like the Mac: the system's own short date format ("12/11 下午1:00", "15/11/26"). */
 function dateLabel(isoString, withTime, withYear = false) {
   const d = new Date(isoString);
-  const opts = withTime ? { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }
+  const opts = withTime ? { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
     : { month: "numeric", day: "numeric", ...(withYear ? { year: "2-digit" } : {}) };
   try { return d.toLocaleString(undefined, opts); } catch { return d.toLocaleDateString(); }
 }
@@ -238,13 +238,74 @@ function isOverdue(d, task) {
 
 const subOverdue = (s) => s.date && !s.isDone && (s.hasTime ? new Date(s.date) < new Date() : new Date(s.date) < startOfDay(new Date()));
 
+/** When the task entered its current status: its last move (as on the Mac, Models.swift inColumnSince). */
+function inColumnSince(task) {
+  const h = [...task.history].reverse().find((e) => ["created", "moved", "completed", "reopened"].includes(e.kind) && !e.field);
+  return new Date(h?.date || task.createdAt);
+}
+
+/** Whole days in its status once past the task's 停留提醒 (staleDays), else null. */
+function staleDays(task) {
+  if (!(task.staleDays > 0) || isDone(task)) return null;
+  const since = inColumnSince(task), due = new Date(since);
+  due.setDate(due.getDate() + task.staleDays);
+  if (due > new Date()) return null;
+  return Math.floor((startOfDay(new Date()) - startOfDay(since)) / 86_400_000);
+}
+
 function addHistory(task, kind, text) {
   task.history.push({ id: uuid(), date: nowISO(), kind, text });
 }
 
-/** Moving to another status: completion date and history like on the Mac. */
+// MARK: 前后顺序 (dependencies, as in Shared/Dependencies.swift)
+// Started = left the first status; finished = in a done status.
+
+const depNeedsFinish = (d) => d.kind === "finishToStart" || d.kind === "finishToFinish";
+const depGatesStart = (d) => d.kind === "finishToStart" || d.kind === "startToStart";
+const isStarted = (task) => isDone(task) || task.columnID !== B().columns[0]?.id;
+function depMet(d) {
+  const other = taskByID(d.taskID);
+  return !other || (depNeedsFinish(d) ? isDone(other) : isStarted(other));
+}
+/** What it still waits for at its next step (start, then finish). */
+function waitingOn(task) {
+  if (isDone(task)) return [];
+  const started = isStarted(task);
+  return (task.dependencies || []).filter((d) => depGatesStart(d) !== started && !depMet(d));
+}
+/** Dependencies a move would break. */
+function unmetDeps(task, columnID) {
+  const target = column(columnID);
+  if (!target || columnID === task.columnID) return [];
+  if (target.isDone) return isDone(task) ? [] : (task.dependencies || []).filter((d) => !depMet(d));
+  const starts = !isStarted(task) && columnID !== B().columns[0]?.id;
+  return starts ? (task.dependencies || []).filter((d) => depGatesStart(d) && !depMet(d)) : [];
+}
+const dependentsOf = (id) => B().tasks.filter((x) => !isDone(x) && (x.dependencies || []).some((d) => d.taskID === id));
+function wouldLoop(taskID, otherID) {
+  const seen = new Set(), stack = [otherID];
+  while (stack.length) {
+    const id = stack.pop();
+    if (id === taskID) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const d of taskByID(id)?.dependencies || []) stack.push(d.taskID);
+  }
+  return false;
+}
+function depSentence(d) {
+  const name = taskByID(d.taskID)?.title || t("已删除的任务");
+  return t({ finishToStart: "等「{}」完成，才能开始", startToStart: "等「{}」开始，才能开始",
+    finishToFinish: "等「{}」完成，才能完成", startToFinish: "等「{}」开始，才能完成" }[d.kind] || "等「{}」完成，才能开始", name);
+}
+const describeDeps = (deps) => !deps.length ? "" : deps.length > 1 ? t("{}（还有 {} 个）", depSentence(deps[0]), deps.length - 1) : depSentence(deps[0]);
+
+/** Moving to another status: completion date and history like on the Mac. Moving a task
+ *  before what it waits for asks first; returns false when the user says no. */
 function moveTask(task, columnID, auto = false) {
-  if (task.columnID === columnID) return;
+  if (task.columnID === columnID) return true;
+  const unmet = auto ? [] : unmetDeps(task, columnID);
+  if (unmet.length && !confirm(`${t("这个任务还在等别的任务")}\n\n「${task.title}」${describeDeps(unmet)}\n\n${t("要仍然移动吗？")}`)) return false;
   const from = column(task.columnID), to = column(columnID);
   const wasDone = !!from?.isDone;
   task.columnID = columnID;
@@ -256,6 +317,7 @@ function moveTask(task, columnID, auto = false) {
   if (to?.isDone && !wasDone) task.completedAt = nowISO();
   if (!to?.isDone) delete task.completedAt;
   task.updatedAt = nowISO();
+  return true;
 }
 
 function topOrder(columnID) {
@@ -470,6 +532,9 @@ function card(task) {
       ${dates ? `<div class="dates">${dates}${task.dates.length > 3 ? `<div class="faint small">${t("还有 {} 个日期", task.dates.length - 3)}</div>` : ""}</div>` : ""}
       ${autoTarget ? `<div class="meta-line" style="color:${esc(autoTarget.colorHex)}">⏩ ${esc(dateLabel(autoMove.date, autoMove.hasTime !== false))} → ${esc(autoTarget.name)}</div>` : ""}
       ${task.links.length ? `<div class="links">${task.links.slice(0, 3).map(linkHTML).join("")}${task.links.length > 3 ? `<div class="faint">${t("还有 {} 个附件", task.links.length - 3)}</div>` : ""}</div>` : ""}
+      ${waitingOn(task).length ? `<div class="meta-line waiting" title="${t("前后顺序：在任务编辑窗口里设置")}">🔗 ${esc(describeDeps(waitingOn(task)))}</div>` : ""}
+      ${(() => { const n = dependentsOf(task.id).filter((x) => x.dependencies.some((d) => d.taskID === task.id && !depMet(d))); return n.length ? `<div class="meta-line muted" title="${esc(n.map((x) => x.title).join("\n"))}">🔗 ${t("{} 个任务在等它", n.length)}</div>` : ""; })()}
+      ${staleDays(task) !== null ? `<div class="meta-line stale" title="${t("停留提醒：在这个状态里待的天数超过了设定（在任务编辑窗口里可以改或关掉）")}">⏳ ${t("在「{}」待了 {} 天", column(task.columnID)?.name || "", staleDays(task))}</div>` : ""}
       ${focusMinutes(task) > 0 ? `<div class="meta-line muted">${t("🍅 专注 {} 分钟", focusMinutes(task))}</div>` : ""}
       ${task.recurrence && task.recurrence !== "none" ? `<div class="meta-line muted"><span class="meta-icon">${icon("repeat")}</span>${esc(repeatTitle(task))}</div>` : ""}
       ${done && task.completedAt ? `<div class="meta-line completed"><span class="meta-icon">${icon("checkCircle")}</span>${t("完成于 {}", dateLabel(task.completedAt, false))}</div>` : ""}
@@ -744,7 +809,7 @@ app.addEventListener("drop", (e) => {
   const task = taskByID(e.dataTransfer.getData("text/plain"));
   if (!task) return;
   const targetCard = e.target.closest("[data-task]");
-  if (task.columnID !== col.dataset.column) moveTask(task, col.dataset.column);
+  if (task.columnID !== col.dataset.column && !moveTask(task, col.dataset.column)) return;
   // Dropped on another card: place it just above that card (manual order).
   if (targetCard && targetCard.dataset.task !== task.id) {
     const list = tasksIn(col.dataset.column).filter((x) => x.id !== task.id);
@@ -762,7 +827,7 @@ function openNew(columnID) {
   const task = {
     id: uuid(), title: "", notes: "", columnID, priorityID: B().defaultPriorityID, tagIDs: [], dates: [], subtasks: [],
     order: topOrder(columnID), history: [], createdAt: nowISO(), updatedAt: nowISO(), recurrence: "none",
-    recurrenceSpawned: false, links: [], notificationsOff: false, flagIDs: [], contactIDs: [], autoMoves: [], focusSessions: [],
+    recurrenceSpawned: false, links: [], notificationsOff: false, flagIDs: [], contactIDs: [], autoMoves: [], focusSessions: [], dependencies: [],
   };
   ui.newTask = task;
   ui.editing = task.id;
@@ -844,7 +909,7 @@ function renderEditor(force = false) {
         <div class="sub-row" data-sub="${esc(s.id)}">
           <button class="box ${s.isDone ? "on" : ""}" data-ed="subdone">${s.isDone ? "✓" : ""}</button>
           <input type="text" class="sub-title-in ${s.isDone ? "struck" : ""}" value="${esc(s.title)}" data-field="subtitle">
-          ${s.date ? `<input type="${s.hasTime ? "datetime-local" : "date"}" value="${inputValue(s.date, s.hasTime)}" data-field="subdate">
+          ${s.date ? `${dateTimeInputs(s.date, s.hasTime, "subdate")}
             <button class="mini" data-ed="subtime">${s.hasTime ? t("去掉时间") : t("+ 时间")}</button>`
           : `<button class="mini" data-ed="subadddate">📅</button>`}
           <span class="sub-actions">
@@ -862,7 +927,7 @@ function renderEditor(force = false) {
         <div class="date-edit" data-date="${esc(d.id)}">
           <div class="line">
             <select data-field="kind">${KINDS.map((k) => `<option value="${k}" ${k === d.kind ? "selected" : ""}>${kindIcon(k)} ${kindTitle(k)}</option>`).join("")}</select>
-            <input type="${showsTime(d) ? "datetime-local" : "date"}" value="${inputValue(d.date, showsTime(d))}" data-field="date">
+            ${dateTimeInputs(d.date, showsTime(d), "date")}
             ${d.kind !== "reminder" ? `<button class="mini" data-ed="datetime">${d.hasTime ? t("去掉时间") : t("+ 时间")}</button>` : ""}
             <button class="mini danger" data-ed="rmdate" aria-label="${t("删除")}">×</button>
           </div>
@@ -874,7 +939,28 @@ function renderEditor(force = false) {
             </select>
           </div>
         </div>`).join("")}
+      <label class="stale-pick">⏳ ${t("停留提醒")}
+        <select id="ed-stale" title="${t("这个任务在同一个状态里（比如「进行中」）待太久时，卡片上会标出来，到时也会发通知；移到别的状态就重新计时")}">
+          <option value="">${t("不提醒")}</option>
+          ${STALE_CHOICES.map((n) => `<option value="${n}" ${task.staleDays === n ? "selected" : ""}>${t("同一个状态待超过 {} 天就提醒", n)}</option>`).join("")}
+        </select></label>
       <select id="ed-adddate"><option value="">📅 ${t("添加日期…")}</option>${KINDS.map((k) => `<option value="${k}">${kindIcon(k)} ${kindTitle(k)}</option>`).join("")}</select>
+
+      <h3>${t("要先完成的任务")}</h3>
+      ${task.dependencies.map((d) => `
+        <div class="dep-row" data-dep="${esc(d.id)}">
+          <span title="${depMet(d) ? t("已经满足") : t("还在等")}">${depMet(d) ? "✅" : "⏳"}</span>
+          <span class="dep-name ${taskByID(d.taskID) ? "" : "muted"}">${esc(taskByID(d.taskID)?.title || t("已删除的任务"))}</span>
+          <button class="mini danger" data-ed="rmdep" aria-label="${t("去掉")}">×</button>
+        </div>`).join("")}
+      ${(() => {
+        const others = b.tasks.filter((x) => x.id !== task.id && !isDone(x) && !task.dependencies.some((d) => d.taskID === x.id) && !wouldLoop(task.id, x.id));
+        const groups = b.columns.filter((c) => !c.isDone).map((c) => [c, others.filter((x) => x.columnID === c.id)]).filter(([, l]) => l.length);
+        return `<select id="ed-adddep" ${others.length ? "" : "disabled"}><option value="">＋ ${t("选择要先完成的任务")}…</option>${groups.map(([c, l]) =>
+          `<optgroup label="${esc(label(c))}">${l.map((x) => `<option value="${esc(x.id)}">${esc(x.title || t("（无标题）"))}</option>`).join("")}</optgroup>`).join("")}</select>`;
+      })()}
+      ${dependentsOf(task.id).length ? `<p class="muted small">${t("在等这个任务的：{}", dependentsOf(task.id).map((x) => `「${esc(x.title)}」`).join("、"))}</p>` : ""}
+      <p class="muted small">${t("上面这些任务都完成了，这个任务才能开始。还没好时卡片上会标出来，硬要开始会先问你；它们完成了会发通知。")}</p>
 
       <h3>${t("重复")}</h3>
       <select id="ed-repeat">
@@ -894,17 +980,24 @@ function renderEditor(force = false) {
   $(".editor .sheet-body").scrollTop = scroll;
 }
 
-function inputValue(isoString, withTime) {
+/** A date field, plus hour (00–23) and minute menus when it has a time: always a 24-hour
+ *  clock, whatever the browser would do with a datetime-local input. */
+function dateTimeInputs(isoString, withTime, field) {
   const d = new Date(isoString);
   const p = (n) => String(n).padStart(2, "0");
   const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return withTime ? `${day}T${p(d.getHours())}:${p(d.getMinutes())}` : day;
+  const menu = (cls, count, value) => `<select class="dt-part ${cls}">${Array.from({ length: count }, (_, i) => `<option value="${i}" ${i === value ? "selected" : ""}>${p(i)}</option>`).join("")}</select>`;
+  return `<span class="dt" data-field="${field}"><input type="date" class="dt-part dt-day" value="${day}">${withTime
+    ? `${menu("dt-h", 24, d.getHours())}<b>:</b>${menu("dt-m", 60, d.getMinutes())}` : ""}</span>`;
 }
 
-/** From a date / datetime-local input: date-only values mean local midnight (as on the Mac). */
-function fromInput(value, withTime) {
-  if (!value) return null;
-  const d = withTime ? new Date(value) : new Date(`${value}T00:00`);
+/** The date those fields show; a date without a time means local midnight (as on the Mac). */
+function readDateTime(wrap) {
+  const day = wrap?.querySelector(".dt-day")?.value;
+  if (!day) return null;
+  const d = new Date(`${day}T00:00`);
+  const h = wrap.querySelector(".dt-h"), m = wrap.querySelector(".dt-m");
+  if (h && m) d.setHours(Number(h.value), Number(m.value));
   return isNaN(d) ? null : iso(d);
 }
 
@@ -934,6 +1027,8 @@ document.addEventListener("change", (e) => {
   const el = e.target;
   if (el.id === "ed-column") { if (taskByID(task.id)) moveTask(task, el.value); else task.columnID = el.value; edited(task, { rerender: true }); }
   else if (el.id === "ed-priority") { task.priorityID = el.value; edited(task); }
+  else if (el.id === "ed-adddep") { if (el.value) task.dependencies.push({ id: uuid(), taskID: el.value, kind: "finishToStart" }); edited(task, { rerender: true }); }
+  else if (el.id === "ed-stale") { if (+el.value > 0) task.staleDays = +el.value; else delete task.staleDays; edited(task); }
   else if (el.id === "ed-repeat") { task.recurrence = el.value; if (el.value !== "custom") delete task.repeatRule; edited(task, { rerender: true }); }
   else if (el.id === "ed-pack") {
     const pack = B().subtaskPacks.find((p) => p.id === el.value);
@@ -947,15 +1042,15 @@ document.addEventListener("change", (e) => {
       task.dates.push({ id: uuid(), kind, date: iso(d), note: "", hasTime: kind === "reminder" });
       edited(task, { rerender: true });
     }
-  } else if (el.dataset.field === "subdate") {
+  } else if (el.closest(".dt")?.dataset.field === "subdate") {
     const s = task.subtasks.find((x) => x.id === el.closest("[data-sub]").dataset.sub);
-    const v = fromInput(el.value, s?.hasTime);
+    const v = readDateTime(el.closest(".dt"));
     if (s && v) { s.date = v; edited(task); }
   } else if (el.closest("[data-date]")) {
     const d = task.dates.find((x) => x.id === el.closest("[data-date]").dataset.date);
     if (!d) return;
     if (el.dataset.field === "kind") { d.kind = el.value; if (d.kind === "reminder") d.hasTime = true; edited(task, { rerender: true }); }
-    else if (el.dataset.field === "date") { const v = fromInput(el.value, showsTime(d)); if (v) { d.date = v; edited(task); } }
+    else if (el.closest(".dt")?.dataset.field === "date") { const v = readDateTime(el.closest(".dt")); if (v) { d.date = v; edited(task); } }
     else if (el.dataset.field === "moveTo") { if (el.value) d.moveTo = el.value; else delete d.moveTo; edited(task); }
   }
 });
@@ -1019,6 +1114,7 @@ document.addEventListener("click", (e) => {
     case "subtime": if (sub) { sub.hasTime = !sub.hasTime; if (!sub.hasTime) sub.date = iso(startOfDay(new Date(sub.date))); else { const d = new Date(sub.date); d.setHours(9); sub.date = iso(d); } } break;
     case "datetime": if (date) { date.hasTime = !date.hasTime; if (!date.hasTime) date.date = iso(startOfDay(new Date(date.date))); else { const d = new Date(date.date); d.setHours(9); date.date = iso(d); } } break;
     case "rmdate": if (date) task.dates = task.dates.filter((x) => x !== date); break;
+    case "rmdep": task.dependencies = task.dependencies.filter((x) => x.id !== el.closest("[data-dep]")?.dataset.dep); break;
     case "delete":
       if (!confirm(t("删除「{}」？30 天内可以在设置 →「最近删除」里恢复。", task.title))) return;
       B().tasks = B().tasks.filter((x) => x.id !== task.id);
@@ -1122,10 +1218,13 @@ function fieldHTML(f, x) {
     case "icon": return `<input class="icon-in" type="text" data-key="${f.key}" value="${esc(v || "")}" placeholder="🙂" maxlength="4">`;
     case "color": return `<input type="color" data-key="${f.key}" value="${esc(v || "#888888")}">`;
     case "check": return `<label class="check-label"><input type="checkbox" data-key="${f.key}" ${v ? "checked" : ""}> ${f.label}</label>`;
-    case "select": return `<select data-key="${f.key}">${f.options.map(([val, name]) => `<option value="${val}" ${val === (v || f.options[0][0]) ? "selected" : ""}>${name}</option>`).join("")}</select>`;
+    case "select": return `<select data-key="${f.key}">${f.options.map(([val, name]) => `<option value="${val}" ${val === String(v || f.options[0][0]) ? "selected" : ""}>${name}</option>`).join("")}</select>`;
     default: return `<input class="${f.cls || "name-in"}" type="${f.type || "text"}" data-key="${f.key}" value="${esc(v || "")}" placeholder="${esc(f.placeholder || "")}">`;
   }
 }
+
+/** Day counts offered for 停留提醒 (PlannerTask.staleChoices on the Mac). */
+const STALE_CHOICES = [1, 2, 3, 5, 7, 10, 14, 21, 30];
 
 function settingsBody(tab, b) {
   switch (tab) {

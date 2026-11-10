@@ -59,7 +59,7 @@ function mergeList(base = [], mine = [], theirs = [], mergeItem = mergeFields) {
 function mergeTask(b, m, t) {
   const r = mergeFields(b, m, t);
   for (const k of ["tagIDs", "flagIDs", "contactIDs"]) r[k] = mergeIDs(b[k], m[k], t[k]);
-  for (const k of ["subtasks", "dates", "autoMoves", "links"]) r[k] = mergeList(b[k], m[k], t[k]);
+  for (const k of ["subtasks", "dates", "autoMoves", "links", "dependencies"]) r[k] = mergeList(b[k], m[k], t[k]);
   const theirHistory = new Set((t.history || []).map((h) => h.id));
   r.history = [...(t.history || []), ...(m.history || []).filter((h) => !theirHistory.has(h.id))]
     .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));

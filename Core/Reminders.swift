@@ -50,6 +50,20 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
                 content.userInfo = ["taskID": task.id]
                 upcoming.append((fire, "task-\(task.id)-\(d.id)", content))
             }
+            // 停留提醒: when it's been in this status too long, at 9:00 (or the next 9:00).
+            if let due = board.staleDate(task) {
+                let cal = Calendar.current
+                var fire = cal.date(bySettingHour: 9, minute: 0, second: 0, of: due) ?? due
+                if fire < due { fire = cal.date(byAdding: .day, value: 1, to: fire) ?? fire }
+                if fire > now, let col = board.column(task.columnID), let days = task.staleDays {
+                    let content = UNMutableNotificationContent()
+                    content.title = L("⏳ 停留太久了")
+                    content.body = L("「\(task.title)」在「\(col.name)」已经待了 \(days) 天")
+                    content.sound = .default
+                    content.userInfo = ["taskID": task.id]
+                    upcoming.append((fire, "stale-\(task.id)", content))
+                }
+            }
             // Dated subtasks: 9:00 on the day.
             for s in task.subtasks where !s.isDone {
                 guard let day = s.date,
@@ -71,6 +85,16 @@ final class ReminderScheduler: NSObject, UNUserNotificationCenterDelegate {
             center.add(UNNotificationRequest(identifier: item.id, content: item.content, trigger: trigger))
         }
         NSLog("Planner: scheduled \(min(upcoming.count, limit)) notification(s)")
+    }
+
+    /// A notification right away (e.g. a task stopped waiting for another).
+    func notifyNow(title: String, body: String, taskID: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.userInfo = ["taskID": taskID]
+        center.add(UNNotificationRequest(identifier: "now-\(taskID)-\(UUID().uuidString)", content: content, trigger: nil))
     }
 
     // Show banners even while the app is in front.

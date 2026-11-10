@@ -118,7 +118,7 @@ extension CloudSync {
         switch status {
         case .off: L("还没有登录")
         case .syncing: L("同步中…")
-        case .synced(let date): L("已同步（\(date.formatted(date: .omitted, time: .shortened))）")
+        case .synced(let date): L("已同步（\(date.formatted(Date.FormatStyle.dateTime.hour().minute().locale(.clock24)))）")
         case .failed(let message): L("同步失败，会自动重试：\(message)")
         }
     }

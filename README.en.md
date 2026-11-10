@@ -67,6 +67,10 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Quick Add** from anywhere with **⌃⌥N** or the menu bar icon — understands `Send draft tomorrow 3pm #Work !urgent @Doing`
 - **Agenda** view: open tasks by date, across all statuses
 - **Review** view: a calendar of what you got done each day, daily notes, a streak counter and 18 achievements
+- **Gantt** view: a table (start, due, “after row”) beside bars you can drag to change dates; grouped by tag in the tag colours; click a task to see its card; the list and each group can be folded
+- **Finish these first**: make a task wait for others (in the task, or by row number in the Gantt view); until they're done its card is marked, starting it anyway asks first, and you're notified when they finish
+- **Stay reminder**: be reminded when a task has sat in one status for N days
+- 24-hour times throughout
 - **Focus timer** (pomodoro) with your own lengths and focus/break cycles, plus a draggable floating countdown when the window is closed or another app is in front (the timer bar inside the window can be dragged anywhere too; right-click to put it back), and an alarm when a period ends (choose the sound or turn it off); and statistics
 - Multi-select, duplicate, undo / redo (⌘Z), Recently Deleted (kept 30 days), adjustable text size
 - **Cloud sync** (toolbar ☁️, since 1.7.0) between the Mac, the web version and your phone, plus **iCloud Drive sync** between Macs; daily backups (kept 30 days)

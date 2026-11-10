@@ -56,6 +56,7 @@ struct SubtaskDateButton: View {
                         DatePicker("", selection: Binding(get: { date ?? Date() }, set: { date = $0 }),
                                    displayedComponents: .hourAndMinute)
                             .labelsHidden()
+                            .clock24()
                     }
                     Spacer(minLength: 0)
                 }

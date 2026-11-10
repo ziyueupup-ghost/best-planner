@@ -239,7 +239,7 @@ private struct DayDetail: View {
                     ForEach(Array(activity.notes.enumerated()), id: \.offset) { _, n in
                         VStack(alignment: .leading, spacing: 1) {
                             Text(n.text).scaledFont(.callout)
-                            Text("\(n.task.title) · \(n.at.formatted(.dateTime.hour().minute()))")
+                            Text("\(n.task.title) · \(n.at.formatted(Date.FormatStyle.dateTime.hour().minute().locale(.clock24)))")
                                 .scaledFont(.caption2).foregroundStyle(.secondary)
                         }
                     }
@@ -301,7 +301,7 @@ private struct DayDetail: View {
             ForEach(board.tags(for: task).prefix(2)) { TagChip(tag: $0, small: true) }
             if deleted { Text(L("已删除")).scaledFont(.caption2).foregroundStyle(.tertiary) }
             Spacer()
-            if let time { Text(time.formatted(.dateTime.hour().minute())).scaledFont(.caption, monospacedDigit: true).foregroundStyle(.secondary) }
+            if let time { Text(time.formatted(Date.FormatStyle.dateTime.hour().minute().locale(.clock24))).scaledFont(.caption, monospacedDigit: true).foregroundStyle(.secondary) }
         }
     }
 
