@@ -65,6 +65,7 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Repeating tasks** (daily, weekdays, weekly, every 2 weeks, monthly, yearly, or custom: every N days / weeks / months / years, on chosen weekdays such as Mon, Wed, Fri)
 - **Reminders** as macOS notifications (per-task on/off)
 - **Quick Add** from anywhere with **⌃⌥N** or the menu bar icon — understands `Send draft tomorrow 3pm #Work !urgent @Doing`
+- **Dashboard** (the first view in the toolbar): every project at a glance — each tag is a project. A rose chart and progress ranking of projects, tasks done today / this week / this month, completion rings for today and this week, an overall progress gauge, tasks done vs created over 30 days, a radar of how things are going, a project table, focus minutes over 14 days and what's due in the next two weeks. Click any number to see which tasks it counts; the layout folds to two or one column in a narrow window
 - **Agenda** view: open tasks by date, across all statuses
 - **Review** view: a calendar of what you got done each day, daily notes, a streak counter and 18 achievements
 - **Gantt** view: a table (start, due, “after row”) beside bars you can drag to change dates; grouped by tag in the tag colours; click a task to see its card; the list and each group can be folded

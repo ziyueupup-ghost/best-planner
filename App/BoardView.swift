@@ -72,6 +72,12 @@ struct BoardView: View {
                 AgendaView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
             } else if viewMode == "review" {
                 ReviewView(onEdit: { editing = $0 })
+            } else if viewMode == "dashboard" {
+                DashboardView(onEdit: { editing = $0 }, onOpenTag: { id in
+                    search = ""
+                    tagFilter = id
+                    viewMode = "board"
+                })
             } else if viewMode == "gantt" {
                 GanttView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
             } else {
@@ -124,13 +130,14 @@ struct BoardView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Picker(L("视图"), selection: $viewMode) {
+                    Label(L("工作台"), systemImage: "square.grid.2x2").tag("dashboard")
                     Label(L("看板"), systemImage: "rectangle.split.3x1").tag("board")
                     Label(L("日程"), systemImage: "calendar.day.timeline.left").tag("agenda")
                     Label(L("甘特图"), systemImage: "chart.bar.xaxis").tag("gantt")
                     Label(L("回顾"), systemImage: "calendar").tag("review")
                 }
                 .pickerStyle(.segmented)
-                .help(L("看板：按状态分列；日程：按日期看没完成的任务；甘特图：按开始和截止日期排成横条，拖动改日期、连线设前后顺序；回顾：日历看每天完成了什么，还有成就"))
+                .help(L("工作台：项目进度和要注意的事；看板：按状态分列；日程：按日期看没完成的任务；甘特图：按开始和截止日期排成横条；回顾：日历看每天完成了什么，还有成就"))
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
