@@ -24,13 +24,18 @@ extension PlannerTask {
         r.contactIDs = mergeIDs(base: base.contactIDs, mine: mine.contactIDs, theirs: theirs.contactIDs)
         r.notificationsOff = pick(base.notificationsOff, mine.notificationsOff, theirs.notificationsOff)
         r.staleDays = pick(base.staleDays, mine.staleDays, theirs.staleDays)
+        r.planDay = pick(base.planDay, mine.planDay, theirs.planDay)
+        r.planOrder = pick(base.planOrder, mine.planOrder, theirs.planOrder)
         r.dependencies = mergeList(base: base.dependencies, mine: mine.dependencies, theirs: theirs.dependencies) { b, m, t in
             TaskDependency(id: t.id, taskID: pick(b.taskID, m.taskID, t.taskID), kind: pick(b.kind, m.kind, t.kind))
         }
         r.tagIDs = mergeIDs(base: base.tagIDs, mine: mine.tagIDs, theirs: theirs.tagIDs)
         r.subtasks = mergeList(base: base.subtasks, mine: mine.subtasks, theirs: theirs.subtasks) { b, m, t in
-            Subtask(id: t.id, title: pick(b.title, m.title, t.title), isDone: pick(b.isDone, m.isDone, t.isDone),
-                    date: pick(b.date, m.date, t.date), hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
+            var s = Subtask(id: t.id, title: pick(b.title, m.title, t.title), isDone: pick(b.isDone, m.isDone, t.isDone),
+                            date: pick(b.date, m.date, t.date), hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
+            s.planDay = pick(b.planDay, m.planDay, t.planDay)
+            s.planOrder = pick(b.planOrder, m.planOrder, t.planOrder)
+            return s
         }
         r.dates = mergeList(base: base.dates, mine: mine.dates, theirs: theirs.dates) { b, m, t in
             TaskDate(id: t.id, kind: pick(b.kind, m.kind, t.kind), date: pick(b.date, m.date, t.date), note: pick(b.note, m.note, t.note),

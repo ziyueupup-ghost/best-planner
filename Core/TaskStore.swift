@@ -737,6 +737,63 @@ final class BoardStore: ObservableObject {
         announceUnblocked()
     }
 
+    // MARK: 今日
+
+    /// Puts tasks and subtasks on the day's plan, after what's already there (one undoable change).
+    func addToPlan(_ refs: [PlanItem.Ref], day: Date = Date()) {
+        let start = Calendar.current.startOfDay(for: day)
+        var next = (board.plan(for: start).map(\.planOrder).max() ?? 0) + 1
+        var b = board
+        for ref in refs {
+            guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
+            if let sid = ref.subtaskID {
+                guard let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }), !b.tasks[i].subtasks[j].isPlanned(on: start) else { continue }
+                b.tasks[i].subtasks[j].planDay = start
+                b.tasks[i].subtasks[j].planOrder = next
+            } else {
+                guard !b.tasks[i].isPlanned(on: start) else { continue }
+                b.tasks[i].planDay = start
+                b.tasks[i].planOrder = next
+            }
+            next += 1
+        }
+        guard b != board else { return }
+        board = b
+        persist()
+    }
+
+    func addToPlan(_ ids: [String], day: Date = Date()) {
+        addToPlan(ids.map { PlanItem.Ref(taskID: $0) }, day: day)
+    }
+
+    func removeFromPlan(_ ref: PlanItem.Ref) {
+        modify(ref.taskID) { t in
+            if let sid = ref.subtaskID {
+                if let j = t.subtasks.firstIndex(where: { $0.id == sid }) { t.subtasks[j].planDay = nil }
+            } else {
+                t.planDay = nil
+            }
+        }
+    }
+
+    func removeFromPlan(_ id: String) { removeFromPlan(PlanItem.Ref(taskID: id)) }
+
+    /// The day's plan in this new order.
+    func reorderPlan(_ refs: [PlanItem.Ref]) {
+        var b = board
+        for (n, ref) in refs.enumerated() {
+            guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
+            if let sid = ref.subtaskID {
+                if let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }) { b.tasks[i].subtasks[j].planOrder = Double(n) }
+            } else {
+                b.tasks[i].planOrder = Double(n)
+            }
+        }
+        guard b != board else { return }
+        board = b
+        persist()
+    }
+
     // MARK: Gantt chart
 
     /// Moves / stretches a task's bar (its 开始 and 截止 dates).

@@ -345,6 +345,9 @@ struct Subtask: Codable, Identifiable, Hashable {
     /// Optional due day (and time, when `hasTime`).
     var date: Date?
     var hasTime = false
+    /// 今日: on a day's plan by itself (Shared/DayPlan.swift).
+    var planDay: Date?
+    var planOrder: Double = 0
 
     init(id: String = UUID().uuidString, title: String, isDone: Bool = false, date: Date? = nil, hasTime: Bool = false) {
         self.id = id
@@ -364,6 +367,8 @@ struct Subtask: Codable, Identifiable, Hashable {
         isDone = (try? c.decodeIfPresent(Bool.self, forKey: .isDone)) ?? false
         date = try? c.decodeIfPresent(Date.self, forKey: .date)
         hasTime = (try? c.decodeIfPresent(Bool.self, forKey: .hasTime)) ?? false
+        planDay = try? c.decodeIfPresent(Date.self, forKey: .planDay)
+        planOrder = (try? c.decodeIfPresent(Double.self, forKey: .planOrder)) ?? 0
     }
 
     /// Past its time (or, without one, before today) and not ticked.
@@ -415,6 +420,9 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     var staleDays: Int?
     /// Other tasks this one waits for (see Shared/Dependencies.swift).
     var dependencies: [TaskDependency] = []
+    /// 今日: the day it's planned for, and its place in that day's order (Shared/DayPlan.swift).
+    var planDay: Date?
+    var planOrder: Double = 0
 
     /// The day counts offered for 停留提醒.
     static let staleChoices = [1, 2, 3, 5, 7, 10, 14, 21, 30]
@@ -469,6 +477,8 @@ struct PlannerTask: Codable, Identifiable, Hashable {
         autoMoves = (try? c.decodeIfPresent([AutoMove].self, forKey: .autoMoves)) ?? []
         staleDays = try? c.decodeIfPresent(Int.self, forKey: .staleDays)
         dependencies = (try? c.decodeIfPresent([TaskDependency].self, forKey: .dependencies)) ?? []
+        planDay = try? c.decodeIfPresent(Date.self, forKey: .planDay)
+        planOrder = (try? c.decodeIfPresent(Double.self, forKey: .planOrder)) ?? 0
         focusSessions = (try? c.decodeIfPresent([FocusSession].self, forKey: .focusSessions)) ?? []
     }
 
