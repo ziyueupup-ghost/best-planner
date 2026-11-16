@@ -24,7 +24,6 @@ struct BoardView: View {
     @AppStorage(FontScale.storageKey) private var storedFontScale = 1.0
     @State private var editing: PlannerTask?
     @State private var creatingIn: ColumnRef?
-    @State private var showWidgetFilter = false
     @State private var showCloud = false
     @ObservedObject private var cloud = CloudSync.shared
     @State private var showSettings = false
@@ -68,18 +67,10 @@ struct BoardView: View {
     /// Board / agenda / review content with its overlays and the multi-select alert.
     private var mainArea: some View {
         Group {
-            if viewMode == "agenda" {
-                AgendaView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
-            } else if viewMode == "review" {
+            if viewMode == "review" {
                 ReviewView(onEdit: { editing = $0 })
             } else if viewMode == "today" {
                 TodayView(onEdit: { editing = $0 })
-            } else if viewMode == "dashboard" {
-                DashboardView(onEdit: { editing = $0 }, onOpenTag: { id in
-                    search = ""
-                    tagFilter = id
-                    viewMode = "board"
-                })
             } else if viewMode == "gantt" {
                 GanttView(visibleIDs: Set(filtered.map(\.id)), onEdit: { editing = $0 })
             } else {
@@ -88,6 +79,8 @@ struct BoardView: View {
         }
         .environmentObject(selection)
         .onAppear {
+            // Views that were merged or removed: 日程 lives in "today" now; the dashboard is gone.
+            if viewMode == "agenda" || viewMode == "dashboard" { viewMode = "today" }
             store.undoManager = undoManager
             // Opened by clicking a notification before the window existed.
             if let id = ReminderScheduler.shared.pendingOpenTaskID {
@@ -132,15 +125,13 @@ struct BoardView: View {
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Picker(L("视图"), selection: $viewMode) {
-                    Label(L("工作台"), systemImage: "square.grid.2x2").tag("dashboard")
-                    Label(L("今日"), systemImage: "sun.max").tag("today")
+                    Label(L("日程"), systemImage: "calendar.day.timeline.left").tag("today")
                     Label(L("看板"), systemImage: "rectangle.split.3x1").tag("board")
-                    Label(L("日程"), systemImage: "calendar.day.timeline.left").tag("agenda")
                     Label(L("甘特图"), systemImage: "chart.bar.xaxis").tag("gantt")
                     Label(L("回顾"), systemImage: "calendar").tag("review")
                 }
                 .pickerStyle(.segmented)
-                .help(L("工作台：项目进度和要注意的事；今日：今天要做的任务和先后顺序；看板：按状态分列；日程：按日期看没完成的任务；甘特图：按开始和截止日期排成横条；回顾：日历看每天完成了什么，还有成就"))
+                .help(L("日程：排好今天、明天或任何一天要做的事和先后顺序，旁边是按日期列出的任务；看板：按状态分列；甘特图：按开始和截止日期排成横条；回顾：日历看每天完成了什么，还有成就"))
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -151,15 +142,6 @@ struct BoardView: View {
                 .help(L("云同步：和网页版、手机、其他电脑同步"))
                 .popover(isPresented: $showCloud, arrowEdge: .bottom) {
                     CloudSyncView()
-                }
-                Button {
-                    showWidgetFilter.toggle()
-                } label: {
-                    Label(L("小组件"), systemImage: "square.grid.2x2")
-                }
-                .help(L("选择桌面小组件显示哪些状态和标签"))
-                .popover(isPresented: $showWidgetFilter, arrowEdge: .bottom) {
-                    WidgetFilterView().environmentObject(store)
                 }
                 Menu {
                     LanguageChoices()
@@ -890,14 +872,19 @@ struct TaskCard: View {
                     Label(L("今日第 \(i + 1) 个"), systemImage: "sun.max.fill")
                         .scaledFont(.caption, weight: .medium)
                         .foregroundStyle(.orange)
-                        .help(L("在今天的计划里（工具栏「今日」）"))
+                        .help(L("在今天的计划里（工具栏「日程」）"))
+                } else if let d = task.planDay, d > Date() {
+                    Label(L("计划 \(d.planDayName)"), systemImage: "calendar.badge.clock")
+                        .scaledFont(.caption, weight: .medium)
+                        .foregroundStyle(.secondary)
+                        .help(L("排在\(d.planDayName)的计划里（工具栏「日程」）"))
                 } else {
                     let subs = plan.filter { $0.task.id == task.id && $0.subtask != nil }.count
                     if subs > 0 {
                         Label(L("今日：\(subs) 个子任务"), systemImage: "sun.max")
                             .scaledFont(.caption, weight: .medium)
                             .foregroundStyle(.orange)
-                            .help(L("它的子任务在今天的计划里（工具栏「今日」）"))
+                            .help(L("它的子任务在今天的计划里（工具栏「日程」）"))
                     }
                 }
             }
@@ -1019,10 +1006,16 @@ struct TaskCard: View {
             Button(L("编辑…"), action: onEdit)
             Button(isSelected ? L("取消选择") : L("选择（多选）")) { selection.toggle(task.id) }
             FocusMenu(task: task, inContextMenu: true)
-            if task.isPlanned(on: Date()) {
-                Button(L("从今天的计划移除")) { store.removeFromPlan(task.id) }
-            } else if !done {
-                Button(L("加入今天的计划")) { store.addToPlan([task.id]) }
+            if !done {
+                Menu(L("加入计划")) {
+                    ForEach(Date.planChoices, id: \.self) { d in
+                        Button(d.planDayName) { store.addToPlan([task.id], day: d) }
+                            .disabled(task.isPlanned(on: d))
+                    }
+                }
+            }
+            if let d = task.planDay, d >= Calendar.current.startOfDay(for: Date()) {
+                Button(L("从计划移除（\(d.planDayName)）")) { store.removeFromPlan(task.id) }
             }
             Menu(L("进展")) {
                 ForEach(board.flags) { f in
@@ -1140,10 +1133,16 @@ struct TaskCard: View {
                     .padding(.leading, 14)
                     .contextMenu {
                         let ref = PlanItem.Ref(taskID: task.id, subtaskID: sub.id)
-                        if sub.isPlanned(on: Date()) {
-                            Button(L("从今天的计划移除")) { store.removeFromPlan(ref) }
-                        } else if !sub.isDone {
-                            Button(L("把这个子任务加到今天的计划")) { store.addToPlan([ref]) }
+                        if !sub.isDone {
+                            Menu(L("加入计划")) {
+                                ForEach(Date.planChoices, id: \.self) { d in
+                                    Button(d.planDayName) { store.addToPlan([ref], day: d) }
+                                        .disabled(sub.isPlanned(on: d))
+                                }
+                            }
+                        }
+                        if let d = sub.planDay, d >= Calendar.current.startOfDay(for: Date()) {
+                            Button(L("从计划移除（\(d.planDayName)）")) { store.removeFromPlan(ref) }
                         }
                     }
                 }

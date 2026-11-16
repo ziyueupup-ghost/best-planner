@@ -57,3 +57,19 @@ extension Board {
             .sorted { ($0.planDay ?? .distantPast, $0.planOrder) < ($1.planDay ?? .distantPast, $1.planOrder) }
     }
 }
+
+extension Date {
+    /// 今天, a weekday (周二) within a week either way, otherwise "12月6日 周日".
+    var planDayName: String {
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: Date()), to: cal.startOfDay(for: self)).day ?? 0
+        if days == 0 { return L("今天") }
+        return abs(days) < 7 ? formatted(.dateTime.weekday()) : formatted(.dateTime.month().day().weekday())
+    }
+
+    /// The next few days from today, for "加到…" menus.
+    static var planChoices: [Date] {
+        let cal = Calendar.current, today = cal.startOfDay(for: Date())
+        return (0..<4).map { cal.date(byAdding: .day, value: $0, to: today)! }
+    }
+}

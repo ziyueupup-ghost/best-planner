@@ -603,8 +603,10 @@ final class BoardStore: ObservableObject {
     // MARK: Quick add
 
     /// Adds a task from a parsed quick-add line (creating new tags, applying linked packs).
-    func quickAdd(_ p: QuickParse) {
-        guard let first = board.columns.first, !p.title.isEmpty else { return }
+    /// Creates the task described by a quick-add line; returns its id.
+    @discardableResult
+    func quickAdd(_ p: QuickParse) -> String? {
+        guard let first = board.columns.first, !p.title.isEmpty else { return nil }
         var t = PlannerTask(title: p.title, columnID: p.columnID ?? first.id)
         t.priorityID = p.priorityID ?? board.defaultPriorityID
         t.tagIDs = p.tagNames.map { addTag(named: $0).id }
@@ -613,6 +615,7 @@ final class BoardStore: ObservableObject {
             for pack in board.packs(forTag: tagID) { t.apply(pack) }
         }
         add(t)
+        return t.id
     }
 
     // MARK: Subtask packs

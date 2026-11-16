@@ -33,214 +33,155 @@ struct Provider: TimelineProvider {
         t1.dates = [TaskDate(kind: .deadline, date: Date().addingTimeInterval(86_400))]
         var t2 = PlannerTask(title: L("设计新页面"), columnID: "doing")
         t2.subtasks = [Subtask(title: L("草图"), isDone: true), Subtask(title: L("高保真"))]
-        b.tasks = [t1, t2, PlannerTask(title: L("回复邮件"), columnID: "todo"), PlannerTask(title: L("整理笔记"), columnID: "done")]
+        var t3 = PlannerTask(title: L("回复邮件"), columnID: "todo")
+        let today = Calendar.current.startOfDay(for: Date())
+        t2.planDay = today; t2.planOrder = 1
+        t1.planDay = today; t1.planOrder = 2
+        t3.planDay = today; t3.planOrder = 3
+        b.tasks = [t1, t2, t3, PlannerTask(title: L("整理笔记"), columnID: "done")]
         return b
     }
 }
 
-/// One line in the widget: a task, one of its subtasks, or "N more".
+/// One line in the widget: an item on today's plan (numbered), a subtask shown under a
+/// planned task, or "N more".
 enum WidgetRow: Identifiable {
-    case task(PlannerTask)
+    case item(Int, PlanItem)
     case subtask(PlannerTask, Subtask)
-    case more(String, Int)
+    case more(Int)
 
     var id: String {
         switch self {
-        case .task(let t): "t-\(t.id)"
+        case .item(_, let it): "i-\(it.id)"
         case .subtask(let t, let s): "s-\(t.id)-\(s.id)"
-        case .more(let key, _): "m-\(key)"
+        case .more: "more"
         }
     }
 }
 
+/// Today's plan (日程), in the order it was put in: tick tasks (circles) and subtasks
+/// (squares) right on the desktop.
 struct PlannerWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: PlannerEntry
 
     private var board: Board { entry.board }
-    private var activeColumns: [BoardColumn] { board.columns.filter { !$0.isDone } }
-    /// Statuses picked in the app's widget settings (empty: each size's default).
-    private var chosenColumns: [BoardColumn] { board.widgetColumns }
-    /// A column's tasks in board order, minus those the widget's tag filter leaves out.
-    private func shown(_ columnID: String) -> [PlannerTask] {
-        board.displayOrder(in: columnID).filter(board.showsOnWidget)
-    }
+    private var plan: [PlanItem] { board.plan(for: entry.date) }
     /// Ticking a task needs somewhere to move it.
     private var canCompleteTasks: Bool { board.columns.contains { $0.isDone } }
 
-    var body: some View {
+    private var budget: Int {
         switch family {
-        case .systemSmall: small
-        case .systemLarge: large
-        default: medium
+        case .systemSmall: 4
+        case .systemLarge: 13
+        default: 5
         }
     }
 
-    // MARK: Small — progress + what's next
-
-    private var small: some View {
-        let counted = board.tasks.filter(board.showsOnWidget)
-        let total = counted.count
-        let done = counted.filter { board.isDone($0) }.count
-        // Same order as the board: columns left to right, tasks top to bottom.
-        let next = (chosenColumns.isEmpty ? activeColumns : chosenColumns).flatMap { shown($0.id) }
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Best Planner").font(.headline)
-                Spacer()
-                Text("\(done)/\(total)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            ProgressView(value: Double(done), total: Double(max(total, 1)))
-                .tint(board.columns.first { $0.isDone }?.color ?? .green)
-                .padding(.bottom, 2)
-            if next.isEmpty {
-                Spacer(minLength: 0)
-                Text(L("全部完成 🎉")).font(.caption).foregroundStyle(.secondary)
-            } else {
-                rowList(rows(next, budget: 4, key: "small"), showMeta: false)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    // MARK: Medium — first two active columns
-
-    private var medium: some View {
-        let defaults = activeColumns.isEmpty ? board.columns : activeColumns
-        let cols = Array((chosenColumns.isEmpty ? defaults : chosenColumns).prefix(2))
-        return HStack(alignment: .top, spacing: 12) {
-            ForEach(Array(cols.enumerated()), id: \.element.id) { i, c in
-                if i > 0 { Divider() }
-                column(c, budget: 5)
-            }
-        }
-    }
-
-    // MARK: Large — all columns stacked, subtasks included
-
-    private var large: some View {
-        let cols = Array((chosenColumns.isEmpty ? board.columns : chosenColumns).prefix(4))
-        let active = max(cols.filter { !$0.isDone }.count, 1)
-        let budget = max(3, 12 / active)
-        return VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text("Best Planner").font(.headline)
-                Spacer()
-                Text(entry.date, format: .dateTime.month().day().weekday())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(Array(cols.enumerated()), id: \.element.id) { i, c in
-                if i > 0 { Divider() }
-                column(c, budget: c.isDone ? 2 : budget)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    // MARK: Pieces
-
-    private func column(_ c: BoardColumn, budget: Int) -> some View {
-        let tasks = shown(c.id)
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
-                if c.icon.isEmpty {
-                    Circle().fill(c.color).frame(width: 8, height: 8)
-                } else {
-                    Text(c.icon).font(.caption)
+    var body: some View {
+        let plan = plan
+        let done = plan.filter { board.isDone($0) }.count
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(L("今天")).font(.headline)
+                if family != .systemSmall {
+                    Text(entry.date, format: .dateTime.month().day().weekday())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                Text(c.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text("\(tasks.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Spacer()
+                if !plan.isEmpty {
+                    Text("\(done)/\(plan.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
-            if tasks.isEmpty {
-                Text(L("暂无任务")).font(.caption).foregroundStyle(.tertiary)
+            if !plan.isEmpty {
+                ProgressView(value: Double(done), total: Double(plan.count))
+                    .tint(Color(hex: "#2A78D6"))
+                    .padding(.bottom, 2)
             }
-            rowList(rows(tasks, budget: budget, key: c.id), showMeta: true)
+            if plan.isEmpty {
+                Spacer(minLength: 0)
+                Text(L("今天还没有安排。")).font(.caption).foregroundStyle(.secondary)
+                Text(L("在 Best Planner 的「日程」里把任务加到今天。")).font(.caption2).foregroundStyle(.tertiary)
+            } else if done == plan.count {
+                Spacer(minLength: 0)
+                Text(L("今天的计划都完成了 🎉")).font(.caption).foregroundStyle(.secondary)
+            } else {
+                rowList(rows(plan))
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Tasks followed by their subtasks (open tasks only), cut off at `budget` lines.
-    private func rows(_ tasks: [PlannerTask], budget: Int, key: String) -> [WidgetRow] {
+    /// Open items first in plan order (finished ones are left out to save room), each task
+    /// followed by its open subtasks, cut off at the size's number of lines.
+    private func rows(_ plan: [PlanItem]) -> [WidgetRow] {
         var out: [WidgetRow] = []
-        var shownTasks = 0
-        for t in tasks {
+        let open = plan.enumerated().filter { !board.isDone($0.element) }
+        var shown = 0
+        for (i, it) in open {
             if out.count >= budget { break }
-            out.append(.task(t))
-            shownTasks += 1
-            guard !board.isDone(t) else { continue }
-            // Ticked subtasks are left out to save room (the app still shows them struck through).
-            for s in t.subtasks where !s.isDone && out.count < budget {
-                out.append(.subtask(t, s))
+            out.append(.item(i + 1, it))
+            shown += 1
+            guard it.subtask == nil, family != .systemSmall else { continue }
+            for s in it.task.subtasks where !s.isDone && out.count < budget {
+                out.append(.subtask(it.task, s))
             }
         }
-        if tasks.count > shownTasks { out.append(.more(key, tasks.count - shownTasks)) }
+        if open.count > shown { out.append(.more(open.count - shown)) }
         return out
     }
 
-    private func rowList(_ rows: [WidgetRow], showMeta: Bool) -> some View {
+    private func rowList(_ rows: [WidgetRow]) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             ForEach(rows) { row in
                 switch row {
-                case .task(let t): taskRow(t, showMeta: showMeta)
+                case .item(let n, let it): itemRow(n, it)
                 case .subtask(let t, let s): subtaskRow(t, s)
-                case .more(_, let n):
+                case .more(let n):
                     Text(L("还有 \(n) 项…")).font(.caption2).foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    private func taskRow(_ task: PlannerTask, showMeta: Bool) -> some View {
-        let done = board.isDone(task)
-        let p = task.subtaskProgress
-        return HStack(spacing: 4) {
-            if canCompleteTasks {
-                Button(intent: ToggleTaskIntent(taskID: task.id)) {
-                    Image(systemName: done ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 12))
-                        .foregroundStyle(done ? Color.green : board.accentColor(of: task))
+    private func itemRow(_ n: Int, _ it: PlanItem) -> some View {
+        let task = it.task
+        return HStack(spacing: 5) {
+            Text("\(n)")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 14, height: 14)
+                .background(Circle().fill(Color(hex: "#2A78D6")))
+            if let sub = it.subtask {
+                Button(intent: ToggleSubtaskIntent(taskID: task.id, subtaskID: sub.id)) {
+                    Image(systemName: "square").font(.system(size: 11)).foregroundStyle(board.accentColor(of: task))
                 }
                 .buttonStyle(.plain)
-            } else {
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(board.accentColor(of: task))
-                    .frame(width: 3, height: 11)
+            } else if canCompleteTasks {
+                Button(intent: ToggleTaskIntent(taskID: task.id)) {
+                    Image(systemName: "circle").font(.system(size: 12)).foregroundStyle(board.accentColor(of: task))
+                }
+                .buttonStyle(.plain)
             }
-            ForEach(board.flags(of: task)) { FlagChip(flag: $0, compact: true) }
-            Text(task.title)
-                .font(.caption)
-                .lineLimit(1)
-                .strikethrough(done)
-                .foregroundStyle(done ? .secondary : .primary)
-            if showMeta {
-                ForEach(board.tags(for: task).prefix(3)) { tag in
-                    TagMark(tag: tag, size: 6)
+            Text(it.title).font(.caption).lineLimit(1)
+            if family != .systemSmall {
+                if it.subtask != nil {
+                    Text("· \(task.title)").font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                } else {
+                    ForEach(board.tags(for: task).prefix(2)) { TagMark(tag: $0, size: 6) }
                 }
             }
             Spacer(minLength: 0)
-            if showMeta, p.total > 0 {
-                Text("\(p.done)/\(p.total)")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            if done, let completed = task.completedAt {
-                HStack(spacing: 1) {
-                    Image(systemName: "checkmark")
-                    Text(completed.shortLabel)
-                }
-                .font(.caption2)
-                .foregroundStyle(.green)
-            } else if let d = task.nextDate, !done {
-                let overdue = board.isOverdue(d, of: task)
+            if family != .systemSmall, it.subtask == nil, let d = task.nextDate {
                 HStack(spacing: 1) {
                     Image(systemName: d.kind.symbol)
                     Text(d.label)
                 }
                 .font(.caption2)
-                .foregroundStyle(overdue ? .red : d.kind.color)
+                .foregroundStyle(board.isOverdue(d, of: task) ? .red : d.kind.color)
             }
         }
     }
@@ -248,16 +189,15 @@ struct PlannerWidgetView: View {
     private func subtaskRow(_ task: PlannerTask, _ sub: Subtask) -> some View {
         HStack(spacing: 4) {
             Button(intent: ToggleSubtaskIntent(taskID: task.id, subtaskID: sub.id)) {
-                Image(systemName: sub.isDone ? "checkmark.square.fill" : "square")
+                Image(systemName: "square")
                     .font(.system(size: 10))
-                    .foregroundStyle(sub.isDone ? board.accentColor(of: task) : .secondary)
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             Text(sub.title)
                 .font(.caption2)
                 .lineLimit(1)
-                .strikethrough(sub.isDone)
-                .foregroundStyle(sub.isDone ? .tertiary : .secondary)
+                .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             if let label = sub.dateLabel {
                 Text(label)
@@ -265,7 +205,7 @@ struct PlannerWidgetView: View {
                     .foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
             }
         }
-        .padding(.leading, 16)
+        .padding(.leading, 33)
     }
 }
 
@@ -276,7 +216,7 @@ struct PlannerWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Best Planner")
-        .description(L("在桌面上查看你的任务看板。"))
+        .description(L("在桌面上看今天的计划，直接打勾。"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

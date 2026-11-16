@@ -25,7 +25,7 @@ The web version: https://best-planner.orgevery.workers.dev
 3. **Sync**: the Mac app uploads about 2 seconds after a change and checks for changes from other devices every 15 seconds; the website uploads at once and checks every 10 seconds while open. It works offline and catches up when you’re back online. Edits made on two devices at once are merged.
 
 Notes:
-- The web version has no focus timer, agenda, review, statistics or multi-select; the next copy of a repeating task is created when the Mac app is open.
+- The web version has no focus timer, Gantt view, review, statistics or multi-select; the next copy of a repeating task is created when the Mac app is open.
 - Files attached on a Mac open only on that Mac; the website shows the device name and path, which you can copy.
 - A wrong password shows how many tries are left; after 5 in a row, wait 15 minutes. There’s no self-service password reset; the admin runs `Web/reset-password.sh`.
 - Accounts can’t see each other’s tasks. iCloud Drive sync still works alongside cloud sync.
@@ -65,9 +65,7 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Repeating tasks** (daily, weekdays, weekly, every 2 weeks, monthly, yearly, or custom: every N days / weeks / months / years, on chosen weekdays such as Mon, Wed, Fri)
 - **Reminders** as macOS notifications (per-task on/off)
 - **Quick Add** from anywhere with **⌃⌥N** or the menu bar icon — understands `Send draft tomorrow 3pm #Work !urgent @Doing`
-- **Dashboard** (the first view in the toolbar): every project at a glance — each tag is a project. A rose chart and progress ranking of projects, tasks done today / this week / this month, completion rings for today and this week, an overall progress gauge, tasks done vs created over 30 days, a radar of how things are going, a project table, focus minutes over 14 days and what's due in the next two weeks. Click any number to see which tasks it counts; the layout folds to two or one column in a narrow window
-- **Today** view (the sun icon): put tasks — or single subtasks — on today's plan, drag them into the order you'll do them, and tick them off; the panel on the right lists what to add (overdue, due today, in progress…) and can be resized or hidden; leftovers from an earlier plan move to today in one click; card menus add or remove too
-- **Agenda** view: open tasks by date, across all statuses
+- **Agenda** view: on the left one scrolling list of plans with a heading per day (earlier days that still have one, yesterday, today, tomorrow…), each with its tasks and subtasks — drag to reorder, tick, move to another day, and move what an earlier day left undone to today in one click. On the right every open task and dated subtask by date (overdue, today, the next days, later, no date; 7 / 14 / 30 days) with ＋ to add it to the chosen day (click a day's heading, or right-click ＋), plus a field for a new task; the panel can be resized or hidden. Card and subtask menus can add to a day too
 - **Review** view: a calendar of what you got done each day, daily notes, a streak counter and 18 achievements
 - **Gantt** view: a table (start, due, “after row”) beside bars you can drag to change dates; grouped by tag in the tag colours; click a task to see its card; the list and each group can be folded
 - **Finish these first**: make a task wait for others (in the task, or by row number in the Gantt view); until they're done its card is marked, starting it anyway asks first, and you're notified when they finish
@@ -76,8 +74,8 @@ Your data stays on your Mac (`~/Library/Application Support/Planner/`), or in iC
 - **Focus timer** (pomodoro) with your own lengths and focus/break cycles, plus a draggable floating countdown when the window is closed or another app is in front (the timer bar inside the window can be dragged anywhere too; right-click to put it back), and an alarm when a period ends (choose the sound or turn it off); and statistics
 - Multi-select, duplicate, undo / redo (⌘Z), Recently Deleted (kept 30 days), adjustable text size
 - **Cloud sync** (toolbar ☁️, since 1.7.0) between the Mac, the web version and your phone, plus **iCloud Drive sync** between Macs; daily backups (kept 30 days)
-- **Desktop widget** (small / medium / large) with subtasks you can tick right on the desktop; the **Widgets** toolbar button chooses which statuses and tags it shows (synced to the iPhone)
-- **Web version**: the same board layout and tag styles as the Mac, task editing, subtasks, attachments (Mac files show the device and path), works offline (see “Web version and cloud sync” above)
+- **Desktop widget** (small / medium / large): today's plan in the order set in the Agenda — tick tasks and subtasks right on the desktop
+- **Web version**: Agenda and Board views (the Agenda plans day by day as on the Mac, phones included), the same board layout and tag styles as the Mac, task editing, subtasks, attachments (Mac files show the device and path), works offline (see “Web version and cloud sync” above)
 
 ## Building from source
 

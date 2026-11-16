@@ -246,13 +246,15 @@ struct FocusMenu: View {
     /// In a right-click menu there's nowhere to show the settings popover; those are
     /// changed from the task editor instead.
     var inContextMenu = false
+    /// Just a 🍅 (in tight rows), with the words as a tooltip.
+    var compact = false
     @AppStorage("focusMinutes") private var focusMinutes = 25
     @AppStorage("focusRestMinutes") private var restMinutes = 5
     @AppStorage("focusRounds") private var rounds = 4
     @State private var showSettings = false
 
     var body: some View {
-        Menu(L("开始专注 🍅")) {
+        Menu {
             Section(L("专注一次")) {
                 ForEach(FocusTimer.durations, id: \.self) { m in
                     Button(L("\(m) 分钟")) { FocusTimer.shared.start(task, minutes: m) }
@@ -270,7 +272,10 @@ struct FocusMenu: View {
                 Divider()
                 Button(L("设置时长和循环…")) { showSettings = true }
             }
+        } label: {
+            Text(compact ? "🍅" : L("开始专注 🍅"))
         }
+        .help(compact ? L("开始专注 🍅") : "")
         .popover(isPresented: $showSettings, arrowEdge: .bottom) {
             FocusSettings(task: task, focusMinutes: $focusMinutes, restMinutes: $restMinutes, rounds: $rounds) {
                 showSettings = false

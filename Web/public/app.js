@@ -358,6 +358,10 @@ const ui = {
   editing: null,     // task id
   openSubtasks: new Set(),
   settingsTab: null,
+  view: load("bp.view") || "board",          // "board" or "agenda" (日程)
+  openDays: new Set([dayKey(new Date())]),   // days open in the plan list (today at first)
+  pickOpen: new Set(),                       // tasks whose subtasks are listed in the agenda
+  newPlanTask: "",
 };
 
 function render() {
@@ -410,6 +414,10 @@ function renderTools() {
   const filterTag = ui.tagFilter && tag(ui.tagFilter);
   el.innerHTML = `
     <div class="tool-group">
+      <button class="tool text ${ui.view === "agenda" ? "on" : ""}" data-act="view" data-view="agenda" title="${t("日程：按天排好要做的事")}">${t("日程")}</button>
+      <button class="tool text ${ui.view === "board" ? "on" : ""}" data-act="view" data-view="board" title="${t("看板")}">${t("看板")}</button>
+    </div>
+    <div class="tool-group">
       <button class="tool" data-act="menu" data-menu="lang" title="${t("切换语言：中文 / English")}">${icon("globe")}<span class="caret">⌄</span></button>
     </div>
     <div class="tool-group">
@@ -425,6 +433,13 @@ function renderTools() {
 }
 
 function renderBoard() {
+  $("#board").classList.toggle("agenda-mode", ui.view === "agenda");
+  if (ui.view === "agenda") {
+    $("#tabs").innerHTML = "";
+    $("#board").innerHTML = renderAgenda();
+    drawTagShapes($("#board"));
+    return;
+  }
   const list = filtered();
   const current = currentColumn();
   $("#tabs").innerHTML = B().columns.map((c) => `
@@ -643,6 +658,8 @@ app.addEventListener("click", (e) => {
     } break;
     case "trash": ui.settingsTab = "trash"; renderSettings(); break;
     case "menu": showMenu(el, menuItems(el.dataset.menu, el.dataset.column)); break;
+    case "view": ui.view = el.dataset.view; save("bp.view", ui.view); renderTools(); renderBoard(); window.scrollTo(0, 0); break;
+    default: planClick(el, e);
   }
 });
 
@@ -1068,7 +1085,7 @@ const clickEd = (name) => $(`.editor [data-ed="${name}"]`)?.click();
 
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-ed]");
-  if (!el) { if (!e.target.closest(".popover,[data-act=contact],[data-act=menu],[data-act=file],[data-ed=showcontact]")) $(".popover")?.remove(); return; }
+  if (!el) { if (!e.target.closest(".popover,[data-act=contact],[data-act=menu],[data-act=pmove],[data-act=file],[data-ed=showcontact]")) $(".popover")?.remove(); return; }
   const task = editingTask();
   if (el.dataset.ed === "close") { closeEditor(); return; }
   if (!task) return;
@@ -1480,6 +1497,264 @@ function signOut() {
   ui.settingsTab = null;
   render();
 }
+
+// MARK: - 日程 (day plans + agenda), as in App/TodayView.swift
+// Plans live on tasks and subtasks: planDay (that day's local midnight, ISO) and planOrder.
+
+function dayKey(d) { const x = new Date(d); return `${x.getFullYear()}-${x.getMonth() + 1}-${x.getDate()}`; }
+const sameDay = (a, b) => a && b && dayKey(a) === dayKey(b);
+const addDays = (d, n) => { const x = startOfDay(new Date(d)); x.setDate(x.getDate() + n); return x; };
+const daysFromToday = (d) => Math.round((startOfDay(new Date(d)) - startOfDay(new Date())) / 86_400_000);
+/** 今天, a weekday (周二) within a week either way, otherwise the date and weekday. */
+function planDayName(d) {
+  const n = daysFromToday(d);
+  if (n === 0) return t("今天");
+  return new Date(d).toLocaleDateString(undefined, Math.abs(n) < 7 ? { weekday: "short" } : { month: "numeric", day: "numeric", weekday: "short" });
+}
+const refOf = (task, sub) => `${task.id}|${sub ? sub.id : ""}`;
+function itemOf(ref) {
+  const [tid, sid] = String(ref).split("|");
+  const task = taskByID(tid);
+  if (!task) return null;
+  const sub = sid ? task.subtasks.find((x) => x.id === sid) : null;
+  return sid && !sub ? null : { task, sub, ref: refOf(task, sub) };
+}
+const itemDay = (it) => (it.sub ? it.sub.planDay : it.task.planDay);
+const itemOrder = (it) => (it.sub ? it.sub.planOrder : it.task.planOrder) || 0;
+const itemDone = (it) => (it.sub ? !!it.sub.isDone : isDone(it.task));
+function plannedItems() {
+  return B().tasks.flatMap((task) => [...(task.planDay ? [{ task, sub: null }] : []),
+    ...task.subtasks.filter((x) => x.planDay).map((sub) => ({ task, sub }))]).map((it) => ({ ...it, ref: refOf(it.task, it.sub) }));
+}
+const planFor = (d) => plannedItems().filter((it) => sameDay(itemDay(it), d)).sort((a, b) => itemOrder(a) - itemOrder(b));
+
+function addToPlan(refs, d) {
+  const day = iso(startOfDay(new Date(d)));
+  let next = Math.max(0, ...planFor(d).map(itemOrder)) + 1;
+  for (const ref of refs) {
+    const it = itemOf(ref);
+    if (!it || sameDay(itemDay(it), d)) continue;
+    const target = it.sub || it.task;
+    target.planDay = day;
+    target.planOrder = next++;
+    it.task.updatedAt = nowISO();
+  }
+  changed();
+}
+
+function setPlanOrder(items) {
+  items.forEach((it, i) => { (it.sub || it.task).planOrder = i; });
+  changed();
+}
+
+/** Earlier days that still have a plan (two weeks back), today and the next six days, later planned days. */
+function planDays() {
+  const today = startOfDay(new Date());
+  const keys = new Map();
+  for (const it of plannedItems()) {
+    const d = startOfDay(new Date(itemDay(it)));
+    if (d >= addDays(today, -14) && (d >= addDays(today, 7) || d < today)) keys.set(dayKey(d), d);
+  }
+  for (let i = 0; i < 7; i++) { const d = addDays(today, i); keys.set(dayKey(d), d); }
+  return [...keys.values()].sort((a, b) => a - b);
+}
+
+function renderAgenda() {
+  return `<section class="plan-col">
+      <div class="plan-top"><b>${t("计划")}</b><span class="muted small">${t("点日期展开或收起；在日程里点 ＋ 加到今天，或拖到某一天上")}</span></div>
+      ${planDays().map(renderPlanDay).join("")}
+    </section>
+    <section class="pick-col">
+      <div class="plan-top"><b>${t("日程")}</b><span class="muted small">${t("点 ＋ 加到今天；日历按钮选别的日子")}</span></div>
+      <input id="plan-new" type="text" placeholder="${t("新任务，回车添加到今天")}" value="${esc(ui.newPlanTask)}">
+      ${renderPicks()}
+    </section>`;
+}
+
+function renderPlanDay(d) {
+  const key = dayKey(d), open = ui.openDays.has(key);
+  const plan = planFor(d), done = plan.filter(itemDone).length;
+  const today = startOfDay(new Date()), past = d < today, isToday = sameDay(d, today);
+  const left = past ? plan.filter((it) => !itemDone(it) && !isDone(it.task)) : [];
+  return `<div class="plan-day ${past ? "past" : ""}">
+    <div class="plan-day-head" data-pday="${key}" data-date="${iso(d)}">
+      <button class="plan-day-btn" data-act="pday" data-key="${key}">
+        <span class="chev ${open ? "open" : ""}">${icon("chevR")}</span>
+        <b class="${isToday ? "today" : ""}">${isToday ? t("今天") : esc(d.toLocaleDateString(undefined, { weekday: "short" }))}</b>
+        <span class="muted">${esc(d.toLocaleDateString(undefined, isToday ? { month: "numeric", day: "numeric", weekday: "short" } : { month: "numeric", day: "numeric" }))}</span>
+        ${plan.length ? `<span class="muted small ${done === plan.length ? "all-done" : ""}">${t("完成 {} / {}", done, plan.length)}</span>` : ""}
+      </button>
+      ${left.length ? `<button class="link small" data-act="pleft" data-date="${iso(d)}">${t("没做完的 {} 个移到今天", left.length)}</button>` : ""}
+    </div>
+    ${open ? (plan.length ? plan.map((it, i) => renderPlanRow(it, i, plan.length)).join("")
+      : `<p class="plan-empty">${past ? t("没有安排") : t("还没有安排，从日程里加任务进来")}</p>`) : ""}
+  </div>`;
+}
+
+function renderPlanRow(it, i, count) {
+  const { task, sub } = it, done = itemDone(it);
+  const g = B().tags.find((x) => task.tagIDs.includes(x.id));
+  const box = sub ? (done ? "☑" : "☐") : (done ? "✓" : "");
+  return `<div class="plan-row ${done ? "done" : ""}" data-ref="${esc(it.ref)}" style="--c:${esc(g?.colorHex || "transparent")}">
+    <span class="plan-num">${i + 1}</span>
+    <button class="plan-tick ${sub ? "square" : "round"} ${done ? "on" : ""}" data-act="ptick" title="${done ? t("标为没完成") : t("完成")}">${box}</button>
+    <div class="plan-body">
+      <button class="plan-title" data-act="pedit">${esc((sub ? sub.title : task.title) || t("（无标题）"))}</button>
+      <div class="plan-meta">${g ? tagChipHTML(g, { small: true }) : ""}
+        ${sub ? `<span class="muted">↳ ${esc(t("「{}」的子任务", task.title))}</span>` : `<span class="muted">${esc(column(task.columnID)?.name || "")}</span>`}
+      </div>
+      ${!sub && task.subtasks.length ? `<div class="plan-subs">${task.subtasks.map((s) => `
+        <button class="plan-sub ${s.isDone ? "done" : ""}" data-act="psub" data-id="${esc(s.id)}" draggable="true" data-drag="${esc(refOf(task, s))}">
+          <span class="sq">${s.isDone ? "☑" : "☐"}</span>${esc(s.title)}${s.planDay && !s.isDone && daysFromToday(s.planDay) >= 0 && !sameDay(s.planDay, itemDay(it)) ? `<span class="plan-other">${esc(planDayName(s.planDay))}</span>` : ""}
+        </button>`).join("")}</div>` : ""}
+    </div>
+    <div class="plan-actions">
+      <button class="mini" data-act="pup" ${i === 0 ? "disabled" : ""} title="${t("往前")}">↑</button>
+      <button class="mini" data-act="pdown" ${i === count - 1 ? "disabled" : ""} title="${t("往后")}">↓</button>
+      <button class="mini" data-act="pmove" data-menu="pmove-${esc(it.ref)}" title="${t("改到别的日子")}">${icon("calendar")}</button>
+      <button class="mini danger" data-act="prm" title="${t("从这天的计划里拿掉（任务本身不会删除）")}">×</button>
+    </div>
+  </div>`;
+}
+
+/** The agenda: open tasks and dated subtasks by date, then those without a date. */
+function renderPicks() {
+  const today = startOfDay(new Date()), q = ui.search.trim().toLowerCase();
+  const match = (task, sub) => !q || task.title.toLowerCase().includes(q) || (sub ? sub.title : "").toLowerCase().includes(q);
+  const openSubs = (task) => task.subtasks.filter((s) => !s.isDone && !sameDay(s.planDay, today));
+  const dated = [], undated = [];
+  for (const task of B().tasks) {
+    if (isDone(task)) continue;
+    if ((!sameDay(task.planDay, today) || openSubs(task).length) && match(task)) {
+      const ds = [...task.dates].sort((a, b) => cmpDates(a.date, b.date));
+      const d = ds.find((x) => x.kind === "deadline" && isOverdue(x, task)) || ds.find((x) => new Date(x.date) >= today);
+      if (d) dated.push({ task, sub: null, date: new Date(d.date), detail: `${kindTitle(d.kind)} ${dateLabel(d.date, showsTime(d))}` });
+      else undated.push({ task, sub: null, detail: column(task.columnID)?.name || "" });
+    }
+    for (const sub of task.subtasks) {
+      if (sub.isDone || !sub.date || sameDay(sub.planDay, today) || !match(task, sub)) continue;
+      if (!subOverdue(sub) && new Date(sub.date) < today) continue;
+      dated.push({ task, sub, date: new Date(sub.date), detail: t("「{}」的子任务 · {}", task.title, dateLabel(sub.date, sub.hasTime)) });
+    }
+  }
+  dated.sort((a, b) => a.date - b.date);
+  const groups = [];
+  const overdue = dated.filter((x) => x.date < today);
+  if (overdue.length) groups.push({ title: t("已过期"), red: true, items: overdue });
+  for (let i = 0; i <= 7; i++) {
+    const s = addDays(today, i), e = addDays(today, i + 1);
+    const items = dated.filter((x) => x.date >= s && x.date < e);
+    if (items.length) groups.push({ title: `${i === 0 ? t("今天") + " · " : ""}${s.toLocaleDateString(undefined, { month: "numeric", day: "numeric", weekday: "short" })}`, items });
+  }
+  const later = dated.filter((x) => x.date >= addDays(today, 8));
+  if (later.length) groups.push({ title: t("以后"), items: later });
+  if (undated.length) groups.push({ title: t("没有日期"), items: undated });
+  if (!groups.length) return `<p class="muted">${q ? t("没有找到。") : t("没完成的任务都已经在今天的计划里了。")}</p>`;
+  return groups.map((g) => `<div class="pick-group">
+      <div class="pick-head ${g.red ? "red" : ""}">${esc(g.title)} · ${g.items.length}</div>
+      ${g.items.map(renderPickRow).join("")}
+    </div>`).join("");
+}
+
+function renderPickRow(x) {
+  const { task, sub } = x, ref = refOf(task, sub), today = startOfDay(new Date());
+  const g = B().tags.find((y) => task.tagIDs.includes(y.id));
+  const planned = sub ? sub.planDay : task.planDay;
+  const elsewhere = planned && daysFromToday(planned) >= 0 && !sameDay(planned, today) ? t("已排在{}", planDayName(planned)) : "";
+  const subs = sub ? [] : task.subtasks.filter((s) => !s.isDone && !sameDay(s.planDay, today));
+  const open = ui.pickOpen.has(task.id);
+  const inToday = !sub && sameDay(task.planDay, today);
+  return `<div class="pick-row" draggable="true" data-drag="${esc(ref)}">
+      ${inToday ? `<span class="pick-plus off" title="${t("已经在今天的计划里")}">✓</span>`
+        : `<button class="pick-plus" data-act="padd" data-ref="${esc(ref)}" title="${t("加到今天")}">＋</button>`}
+      <span class="pick-dot" style="background:${esc(g?.colorHex || "#bbb")}"></span>
+      <div class="pick-body">
+        <button class="plan-title" data-act="pedit" data-ref="${esc(ref)}">${sub ? "↳ " : ""}${esc((sub ? sub.title : task.title) || t("（无标题）"))}</button>
+        <div class="muted small">${esc([x.detail, elsewhere].filter(Boolean).join(" · "))}</div>
+      </div>
+      <button class="mini" data-act="pmove" data-ref="${esc(ref)}" data-menu="padd-${esc(ref)}" title="${t("加到别的日子")}">${icon("calendar")}</button>
+      ${subs.length ? `<button class="mini" data-act="psubs" data-id="${esc(task.id)}" title="${t("把子任务单独加进计划")}">${t("子任务 {}", subs.length)} ${open ? "▾" : "▸"}</button>` : ""}
+    </div>
+    ${open ? subs.map((s) => `<div class="pick-row sub" draggable="true" data-drag="${esc(refOf(task, s))}">
+        <button class="pick-plus" data-act="padd" data-ref="${esc(refOf(task, s))}" title="${t("加到今天")}">＋</button>
+        <div class="pick-body"><span>${esc(s.title)}</span></div>
+        <button class="mini" data-act="pmove" data-ref="${esc(refOf(task, s))}" data-menu="padd-${esc(refOf(task, s))}" title="${t("加到别的日子")}">${icon("calendar")}</button>
+      </div>`).join("") : ""}`;
+}
+
+/** Menu of days to put something on (today and the next six days). */
+function dayMenu(run) {
+  return Array.from({ length: 7 }, (_, i) => addDays(new Date(), i)).map((d) => ({
+    label: `${planDayName(d)} ${d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}`, run: () => run(d) }));
+}
+
+function planClick(el, e) {
+  const row = el.closest("[data-ref]");
+  const it = row && itemOf(el.dataset.ref || row.dataset.ref);
+  switch (el.dataset.act) {
+    case "pday": { const k = el.dataset.key; ui.openDays.has(k) ? ui.openDays.delete(k) : ui.openDays.add(k); renderBoard(); break; }
+    case "padd": if (it) addToPlan([it.ref], new Date()); break;
+    case "pleft": {
+      const d = new Date(el.dataset.date);
+      addToPlan(planFor(d).filter((x) => !itemDone(x) && !isDone(x.task)).map((x) => x.ref), new Date());
+      break;
+    }
+    case "pedit": if (it) { ui.editing = it.task.id; renderEditor(); } break;
+    case "ptick": if (it) {
+      if (it.sub) { it.sub.isDone = !it.sub.isDone; addHistory(it.task, "subtask", t(it.sub.isDone ? "完成子任务「{}」" : "重新打开子任务「{}」", it.sub.title)); it.task.updatedAt = nowISO(); }
+      else toggleDone(it.task);
+      changed();
+    } break;
+    case "psub": if (it) {
+      const s = it.task.subtasks.find((x) => x.id === el.dataset.id);
+      if (s) { s.isDone = !s.isDone; addHistory(it.task, "subtask", t(s.isDone ? "完成子任务「{}」" : "重新打开子任务「{}」", s.title)); it.task.updatedAt = nowISO(); changed(); }
+    } break;
+    case "pup": case "pdown": if (it) {
+      const plan = planFor(itemDay(it)), i = plan.findIndex((x) => x.ref === it.ref), j = i + (el.dataset.act === "pup" ? -1 : 1);
+      if (j >= 0 && j < plan.length) { [plan[i], plan[j]] = [plan[j], plan[i]]; setPlanOrder(plan); }
+    } break;
+    case "prm": if (it) { (it.sub || it.task).planDay = null; delete (it.sub || it.task).planDay; it.task.updatedAt = nowISO(); changed(); } break;
+    case "pmove": if (it) showMenu(el, dayMenu((d) => addToPlan([it.ref], d))); break;
+    case "psubs": { const id = el.dataset.id; ui.pickOpen.has(id) ? ui.pickOpen.delete(id) : ui.pickOpen.add(id); renderBoard(); break; }
+  }
+}
+
+// New task typed in the agenda: created in the first status and put on today's plan.
+document.addEventListener("input", (e) => { if (e.target.id === "plan-new") ui.newPlanTask = e.target.value; });
+document.addEventListener("keydown", (e) => {
+  if (e.target.id !== "plan-new" || e.key !== "Enter" || e.isComposing) return;
+  const title = e.target.value.trim();
+  if (!title) return;
+  const first = B().columns[0];
+  const task = { id: uuid(), title, notes: "", columnID: first.id, priorityID: B().defaultPriorityID, tagIDs: [], dates: [], subtasks: [],
+    order: topOrder(first.id), history: [], createdAt: nowISO(), updatedAt: nowISO(), recurrence: "none", recurrenceSpawned: false,
+    links: [], notificationsOff: false, flagIDs: [], contactIDs: [], autoMoves: [], focusSessions: [], dependencies: [] };
+  addHistory(task, "created", t("创建于「{}」", first.name));
+  B().tasks.push(task);
+  ui.newPlanTask = "";
+  addToPlan([refOf(task, null)], new Date());
+  setTimeout(() => $("#plan-new")?.focus(), 0);
+});
+
+// Drag a task or subtask (agenda rows, subtasks in a plan) onto a day's heading (desktop).
+app.addEventListener("dragstart", (e) => {
+  const d = e.target.closest?.("[data-drag]");
+  if (d) { e.dataTransfer.setData("application/x-plan", d.dataset.drag); e.dataTransfer.effectAllowed = "copy"; e.stopPropagation(); }
+}, true);
+app.addEventListener("dragover", (e) => {
+  const h = e.target.closest?.("[data-pday]");
+  if (h && [...e.dataTransfer.types].includes("application/x-plan")) { e.preventDefault(); h.classList.add("drop"); }
+});
+app.addEventListener("dragleave", (e) => e.target.closest?.("[data-pday]")?.classList.remove("drop"));
+app.addEventListener("drop", (e) => {
+  const h = e.target.closest?.("[data-pday]");
+  const ref = e.dataTransfer.getData("application/x-plan");
+  if (!h || !ref) return;
+  e.preventDefault();
+  e.stopPropagation();
+  ui.openDays.add(h.dataset.pday);
+  addToPlan([ref], new Date(h.dataset.date));
+}, true);
 
 // MARK: - Start
 

@@ -308,3 +308,62 @@ input[type=color] { width: 38px; height: 34px; padding: 2px; }
   .tools { margin-left: 0; }
   .search { flex: 1 1 100%; order: 3; }
 }
+
+/* 日程: day plans (left / top) and the agenda (right / below) */
+.board-shell.agenda-mode { display: block; padding: 0 16px 40px; }
+.agenda-mode .plan-col, .agenda-mode .pick-col { min-width: 0; }
+.agenda-mode .pick-col { margin-top: 24px; padding: 14px; border-radius: 14px; background: color-mix(in srgb, var(--text) 3%, var(--bg)); }
+@media (min-width: 900px) {
+  .board-shell.agenda-mode { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 18px; align-items: start; }
+  .agenda-mode .pick-col { margin-top: 0; position: sticky; top: 64px; max-height: calc(100vh - 90px); overflow: auto; }
+}
+.plan-top { display: flex; align-items: baseline; gap: 10px; margin: 4px 0 10px; flex-wrap: wrap; }
+.plan-top b { font-size: var(--title3); }
+.small { font-size: var(--caption); }
+.plan-day { border-bottom: 1px solid var(--line); padding: 4px 0 8px; }
+.plan-day-head { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 4px 6px; }
+.plan-day-head.drop { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.plan-day-btn { display: flex; align-items: baseline; gap: 8px; flex: 1; text-align: left; padding: 4px 0; }
+.plan-day-btn b { font-size: var(--title3); }
+.plan-day-btn b.today { font-size: calc(var(--title3) * 1.25); }
+.plan-day.past .plan-day-btn b { color: var(--muted); }
+.plan-day .chev { display: inline-flex; color: var(--muted); transition: transform .15s; }
+.plan-day .chev.open { transform: rotate(90deg); }
+.all-done { color: #1baf7a; }
+.plan-empty { color: color-mix(in srgb, var(--muted) 70%, transparent); font-size: var(--callout); margin: 4px 0 6px 28px; }
+.plan-row { display: flex; align-items: flex-start; gap: 10px; margin: 6px 0; padding: 10px 12px; border-radius: 10px; background: var(--panel);
+  box-shadow: inset 4px 0 0 var(--c), 0 0 0 1px var(--line); }
+.plan-row.done { opacity: .6; }
+.plan-num { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: var(--caption); font-weight: 700;
+  color: #fff; background: #2a78d6; }
+.plan-row.done .plan-num { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--muted); }
+.plan-tick { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border: 1.5px solid var(--muted); color: #fff; font-size: 13px; }
+.plan-tick.round { border-radius: 50%; }
+.plan-tick.square { border-radius: 5px; }
+.plan-tick.on { background: #1baf7a; border-color: #1baf7a; }
+.plan-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.plan-title { text-align: left; font-weight: 600; font-size: var(--body); }
+.plan-row.done .plan-title { text-decoration: line-through; color: var(--muted); }
+.plan-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--caption); }
+.plan-subs { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.plan-sub { display: flex; align-items: center; gap: 6px; text-align: left; font-size: var(--callout); }
+.plan-sub .sq { color: var(--muted); }
+.plan-sub.done { color: var(--muted); text-decoration: line-through; }
+.plan-other { margin-left: 6px; font-size: var(--caption); color: #eb6834; text-decoration: none; }
+.plan-actions { display: flex; gap: 2px; flex: none; opacity: .5; }
+.plan-row:hover .plan-actions { opacity: 1; }
+@media (max-width: 699px) { .plan-actions { opacity: 1; } }
+#plan-new { width: 100%; margin-bottom: 10px; }
+.pick-group { margin-bottom: 12px; }
+.pick-head { font-size: var(--caption); font-weight: 600; color: var(--muted); margin: 6px 0 4px; }
+.pick-head.red { color: var(--danger); }
+.pick-row { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-radius: 8px; }
+.pick-row.sub { padding-left: 26px; }
+.pick-row[draggable="true"] { cursor: grab; }
+.pick-plus { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #2a78d6; color: #fff; display: grid; place-items: center; font-size: 15px; line-height: 1; }
+.pick-plus.off { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--muted); font-size: 12px; }
+.pick-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.pick-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pick-body .plan-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool.text { white-space: nowrap; }
+.plan-other, .plan-meta .muted { white-space: nowrap; }
