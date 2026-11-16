@@ -1561,10 +1561,10 @@ function planDays() {
 
 function renderAgenda() {
   return `<section class="plan-col">
-      <div class="plan-top"><b>${t("计划")}</b><span class="muted small">${t("点日期展开或收起；在日程里点 ＋ 加到今天，或拖到某一天上")}</span></div>
+      <div class="plan-top"><b>${t("计划")}</b><span class="muted small">${t("点日期展开或收起；任务可以拖到任意一天，拖回右边就从计划里拿掉")}</span></div>
       ${planDays().map(renderPlanDay).join("")}
     </section>
-    <section class="pick-col">
+    <section class="pick-col" data-drop-hint="${esc(t("松开：从计划里拿掉（任务本身不会删除）"))}">
       <div class="plan-top"><b>${t("日程")}</b><span class="muted small">${t("点 ＋ 加到今天；日历按钮选别的日子")}</span></div>
       <input id="plan-new" type="text" placeholder="${t("新任务，回车添加到今天")}" value="${esc(ui.newPlanTask)}">
       ${renderPicks()}
@@ -1595,7 +1595,7 @@ function renderPlanRow(it, i, count) {
   const { task, sub } = it, done = itemDone(it);
   const g = B().tags.find((x) => task.tagIDs.includes(x.id));
   const box = sub ? (done ? "☑" : "☐") : (done ? "✓" : "");
-  return `<div class="plan-row ${done ? "done" : ""}" data-ref="${esc(it.ref)}" style="--c:${esc(g?.colorHex || "transparent")}">
+  return `<div class="plan-row ${done ? "done" : ""}" data-ref="${esc(it.ref)}" draggable="true" data-drag="${esc(it.ref)}" data-from-plan="1" style="--c:${esc(g?.colorHex || "transparent")}">
     <span class="plan-num">${i + 1}</span>
     <button class="plan-tick ${sub ? "square" : "round"} ${done ? "on" : ""}" data-act="ptick" title="${done ? t("标为没完成") : t("完成")}">${box}</button>
     <div class="plan-body">
@@ -1611,7 +1611,7 @@ function renderPlanRow(it, i, count) {
     <div class="plan-actions">
       <button class="mini" data-act="pup" ${i === 0 ? "disabled" : ""} title="${t("往前")}">↑</button>
       <button class="mini" data-act="pdown" ${i === count - 1 ? "disabled" : ""} title="${t("往后")}">↓</button>
-      <button class="mini" data-act="pmove" data-menu="pmove-${esc(it.ref)}" title="${t("改到别的日子")}">${icon("calendar")}</button>
+      <button class="mini" data-act="pmove" data-menu="pmove-${esc(it.ref)}" title="${t("改到别的日子（也可以直接拖到那天的标题上）")}">${icon("calendar")}</button>
       <button class="mini danger" data-act="prm" title="${t("从这天的计划里拿掉（任务本身不会删除）")}">×</button>
     </div>
   </div>`;
@@ -1682,10 +1682,43 @@ function renderPickRow(x) {
       </div>`).join("") : ""}`;
 }
 
-/** Menu of days to put something on (today and the next six days). */
-function dayMenu(run) {
-  return Array.from({ length: 7 }, (_, i) => addDays(new Date(), i)).map((d) => ({
-    label: `${planDayName(d)} ${d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}`, run: () => run(d) }));
+/** Menu of days to put something on (today and the next six days), then any other date. */
+function dayMenu(run, anchor) {
+  return [...Array.from({ length: 7 }, (_, i) => addDays(new Date(), i)).map((d) => ({
+    label: `${planDayName(d)} ${d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}`, run: () => run(d) })),
+    "-", { label: t("选别的日期…"), run: () => datePopover(anchor, run) }];
+}
+
+/** A small popover with a date field; picking a date runs `run` with it. */
+function datePopover(anchor, run) {
+  const pop = document.createElement("div");
+  pop.className = "popover date-pop";
+  pop.innerHTML = `<input type="date" value="${dayKey(new Date()).split("-").map((x) => x.padStart(2, "0")).join("-")}"><button class="primary small">${t("确定")}</button>`;
+  const input = pop.querySelector("input");
+  const apply = () => {
+    if (!input.value) return;
+    const [y, m, d] = input.value.split("-").map(Number);
+    pop.remove();
+    run(new Date(y, m - 1, d));
+  };
+  pop.querySelector("button").addEventListener("click", apply);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") apply(); });
+  document.body.appendChild(pop);
+  placePopover(pop, anchor);
+  input.focus();
+  try { input.showPicker?.(); } catch {}
+}
+
+/** Puts these on day `d` at `index` (moving them off any other day), keeping that day's order. */
+function placeInPlan(refs, d, index = Infinity) {
+  const day = iso(startOfDay(new Date(d)));
+  const before = planFor(d);
+  const shift = before.slice(0, index).filter((x) => refs.includes(x.ref)).length;
+  const order = before.filter((x) => !refs.includes(x.ref));
+  const moved = refs.map(itemOf).filter(Boolean);
+  for (const it of moved) { (it.sub || it.task).planDay = day; it.task.updatedAt = nowISO(); }
+  order.splice(Math.max(0, Math.min(index - shift, order.length)), 0, ...moved);
+  setPlanOrder(order);
 }
 
 function planClick(el, e) {
@@ -1714,7 +1747,7 @@ function planClick(el, e) {
       if (j >= 0 && j < plan.length) { [plan[i], plan[j]] = [plan[j], plan[i]]; setPlanOrder(plan); }
     } break;
     case "prm": if (it) { (it.sub || it.task).planDay = null; delete (it.sub || it.task).planDay; it.task.updatedAt = nowISO(); changed(); } break;
-    case "pmove": if (it) showMenu(el, dayMenu((d) => addToPlan([it.ref], d))); break;
+    case "pmove": if (it) showMenu(el, dayMenu((d) => { ui.openDays.add(dayKey(d)); addToPlan([it.ref], d); }, el)); break;
     case "psubs": { const id = el.dataset.id; ui.pickOpen.has(id) ? ui.pickOpen.delete(id) : ui.pickOpen.add(id); renderBoard(); break; }
   }
 }
@@ -1736,24 +1769,58 @@ document.addEventListener("keydown", (e) => {
   setTimeout(() => $("#plan-new")?.focus(), 0);
 });
 
-// Drag a task or subtask (agenda rows, subtasks in a plan) onto a day's heading (desktop).
+// Drag a task or subtask (agenda rows, subtasks in a plan, rows of a plan) onto a day's
+// heading or between a day's rows (desktop). A plan row dragged back to the agenda on the
+// right comes off its day.
 app.addEventListener("dragstart", (e) => {
   const d = e.target.closest?.("[data-drag]");
-  if (d) { e.dataTransfer.setData("application/x-plan", d.dataset.drag); e.dataTransfer.effectAllowed = "copy"; e.stopPropagation(); }
+  if (!d) return;
+  e.dataTransfer.setData("application/x-plan", d.dataset.drag);
+  if (d.dataset.fromPlan) e.dataTransfer.setData("application/x-plan-row", d.dataset.drag);
+  e.dataTransfer.effectAllowed = "move";
+  e.stopPropagation();
 }, true);
+const clearPlanDrop = () => document.querySelectorAll(".plan-day-head.drop,.plan-row.drop-before,.plan-row.drop-after,.pick-col.drop").forEach((x) => x.classList.remove("drop", "drop-before", "drop-after"));
+function planDropTarget(e) {
+  const types = [...(e.dataTransfer?.types || [])];
+  if (!types.includes("application/x-plan")) return null;
+  const head = e.target.closest?.("[data-pday]");
+  if (head) return { el: head, cls: "drop" };
+  const row = e.target.closest?.(".plan-row");
+  if (row) { const r = row.getBoundingClientRect(); return { el: row, cls: e.clientY < r.top + r.height / 2 ? "drop-before" : "drop-after" }; }
+  const pick = e.target.closest?.(".pick-col");
+  if (pick && types.includes("application/x-plan-row")) return { el: pick, cls: "drop" };
+  return null;
+}
 app.addEventListener("dragover", (e) => {
-  const h = e.target.closest?.("[data-pday]");
-  if (h && [...e.dataTransfer.types].includes("application/x-plan")) { e.preventDefault(); h.classList.add("drop"); }
+  const target = planDropTarget(e);
+  if (!target) return;
+  e.preventDefault();
+  if (!target.el.classList.contains(target.cls)) { clearPlanDrop(); target.el.classList.add(target.cls); }
 });
-app.addEventListener("dragleave", (e) => e.target.closest?.("[data-pday]")?.classList.remove("drop"));
+app.addEventListener("dragleave", (e) => { if (!e.relatedTarget || !app.contains(e.relatedTarget)) clearPlanDrop(); });
+app.addEventListener("dragend", clearPlanDrop);
 app.addEventListener("drop", (e) => {
-  const h = e.target.closest?.("[data-pday]");
+  const target = planDropTarget(e);
   const ref = e.dataTransfer.getData("application/x-plan");
-  if (!h || !ref) return;
+  clearPlanDrop();
+  if (!target || !ref) return;
   e.preventDefault();
   e.stopPropagation();
-  ui.openDays.add(h.dataset.pday);
-  addToPlan([ref], new Date(h.dataset.date));
+  const { el, cls } = target;
+  if (el.classList.contains("pick-col")) {
+    const it = itemOf(ref);
+    if (it) { delete (it.sub || it.task).planDay; it.task.updatedAt = nowISO(); changed(); }
+  } else if (el.dataset.pday) {
+    ui.openDays.add(el.dataset.pday);
+    const d = new Date(el.dataset.date);
+    if (!planFor(d).some((x) => x.ref === ref)) placeInPlan([ref], d);
+  } else {
+    const at = itemOf(el.dataset.ref);
+    if (!at || at.ref === ref) return;
+    const d = itemDay(at), plan = planFor(d);
+    placeInPlan([ref], d, plan.findIndex((x) => x.ref === at.ref) + (cls === "drop-after" ? 1 : 0));
+  }
 }, true);
 
 // MARK: - Start

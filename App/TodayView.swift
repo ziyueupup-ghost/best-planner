@@ -28,6 +28,9 @@ struct TodayView: View {
     /// The day heading something is being dragged over.
     @State private var dropTarget: Date?
     @State private var pickingDate = false
+    /// A row of the plan is being dragged (dropping it on the right takes it off the plan).
+    @State private var draggingFromPlan = false
+    @State private var overPicks = false
     /// Days whose list is open on the left (only today at first; the rest start folded).
     @State private var openDays: Set<Date> = [Calendar.current.startOfDay(for: Date())]
 
@@ -44,6 +47,28 @@ struct TodayView: View {
                 resizeHandle
                 pickColumn
                     .frame(width: pickWidth * fontScale)
+                    .overlay {
+                        if overPicks && draggingFromPlan {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.red.opacity(0.06))
+                                .strokeBorder(Color.red.opacity(0.6), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                                .overlay(Label(L("松开：从计划里拿掉（任务本身不会删除）"), systemImage: "calendar.badge.minus")
+                                    .scaledFont(.callout, weight: .medium)
+                                    .foregroundStyle(.red)
+                                    .padding(10)
+                                    .background(.background, in: RoundedRectangle(cornerRadius: 8)))
+                                .padding(6)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    // A row dragged back here from the plan comes off its day.
+                    .dropDestination(for: String.self) { items, _ in
+                        let refs = items.filter(PlanDrag.isFromPlan).compactMap(PlanDrag.ref)
+                        draggingFromPlan = false
+                        guard !refs.isEmpty else { return false }
+                        withAnimation(.snappy) { refs.forEach(store.removeFromPlan) }
+                        return true
+                    } isTargeted: { overPicks = $0 }
                     .transition(.move(edge: .trailing))
             }
         }
@@ -87,7 +112,7 @@ struct TodayView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text(L("计划")).scaledFont(.title2, weight: .bold)
-                Text(L("点日期展开或收起；把右边的任务或子任务拖到某一天上，就排进那天")).scaledFont(.caption).foregroundStyle(.secondary)
+                Text(L("点日期展开或收起；任务可以拖到任意一天，拖回右边就从计划里拿掉")).scaledFont(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button { pickingDate = true } label: { Label(L("其他日子"), systemImage: "calendar") }
                     .buttonStyle(.borderless)
@@ -125,14 +150,23 @@ struct TodayView: View {
                             }
                             ForEach(Array(plan.enumerated()), id: \.element.id) { i, item in
                                 PlanRow(item: item, day: d, number: i + 1, count: plan.count, onEdit: onEdit,
-                                        move: { offset in move(plan, from: i, to: i + offset) })
+                                        move: { offset in move(plan, from: i, to: i + offset) },
+                                        moveTo: { day in
+                                            withAnimation(.snappy) { store.placeInPlan([item.ref], day: day, at: .max) }
+                                            openDays.insert(cal.startOfDay(for: day))
+                                            if !planDays.contains(cal.startOfDay(for: day)) { extraDay = cal.startOfDay(for: day) }
+                                        },
+                                        onDragStart: { draggingFromPlan = true })
                                     .listRowSeparator(.hidden)
                                     .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
                             }
-                            .onMove { from, to in
-                                var refs = plan.map(\.ref)
-                                refs.move(fromOffsets: from, toOffset: to)
-                                withAnimation(.snappy) { store.reorderPlan(refs) }
+                            // Drag a row up or down within the day, or drop anything (a row from
+                            // another day, a task from the right) between the rows.
+                            .dropDestination(for: String.self) { items, index in
+                                let refs = items.compactMap(PlanDrag.ref)
+                                draggingFromPlan = false
+                                guard !refs.isEmpty else { return }
+                                withAnimation(.snappy) { store.placeInPlan(refs, day: d, at: index) }
                             }
                             }
                         } header: {
@@ -179,12 +213,14 @@ struct TodayView: View {
                             .scaledFont(.caption, monospacedDigit: true)
                             .foregroundStyle(done == plan.count ? Color.green : Color.secondary)
                     }
+                    // The whole row (not just the arrow and the name) opens or folds the day.
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(open ? L("收起这一天") : L("展开这一天"))
-            Spacer()
             if d < today, !leftOver.isEmpty {
                 Button(L("没做完的 \(leftOver.count) 个移到今天")) {
                     withAnimation(.snappy) { store.addToPlan(leftOver.map(\.ref), day: today) }
@@ -202,9 +238,11 @@ struct TodayView: View {
         // Drop tasks or subtasks dragged from the agenda (or a plan) onto a day to plan them there.
         .dropDestination(for: String.self) { items, _ in
             let refs = items.compactMap(PlanDrag.ref)
+            draggingFromPlan = false
             guard !refs.isEmpty else { return false }
             withAnimation(.snappy) {
-                store.addToPlan(refs, day: d)
+                // From another day: moves to the end of this one. From the right: added.
+                store.placeInPlan(refs.filter { !board.plan(for: d).map(\.ref).contains($0) }, day: d, at: .max)
                 openDays.insert(d)
             }
             return true
@@ -480,7 +518,10 @@ private struct PlanRow: View {
     let count: Int
     let onEdit: (PlannerTask) -> Void
     let move: (Int) -> Void
+    let moveTo: (Date) -> Void
+    let onDragStart: () -> Void
     @State private var hovering = false
+    @State private var pickingDay = false
     /// Folded subtask list (shown by default so they're visible without opening the task).
     @State private var subtasksFolded = false
 
@@ -573,15 +614,26 @@ private struct PlanRow: View {
                     .disabled(number == count)
                     .help(L("往后"))
                 Menu {
-                    ForEach(Date.planChoices.filter { !Calendar.current.isDate($0, inSameDayAs: day) }, id: \.self) { d in
-                        Button(L("改到\(d.planDayName)")) { withAnimation(.snappy) { store.addToPlan([item.ref], day: d) } }
+                    ForEach(Date.weekChoices.filter { !Calendar.current.isDate($0, inSameDayAs: day) }, id: \.self) { d in
+                        Button(L("改到\(d.planDayName)") + "  " + d.formatted(.dateTime.month().day())) { moveTo(d) }
                     }
+                    Divider()
+                    Button(L("选别的日期…")) { pickingDay = true }
                 } label: {
                     Image(systemName: "calendar.badge.clock")
                 }
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help(L("改到别的日子"))
+                .help(L("改到别的日子（也可以直接拖到那天的标题上）"))
+                .popover(isPresented: $pickingDay) {
+                    DatePicker("", selection: Binding(get: { day }, set: { d in
+                        pickingDay = false
+                        moveTo(d)
+                    }), displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .padding(10)
+                }
                 Button { withAnimation(.snappy) { store.removeFromPlan(item.ref) } } label: { Image(systemName: "xmark") }
                     .help(L("从这天的计划里拿掉（任务本身不会删除）"))
             }
@@ -598,6 +650,14 @@ private struct PlanRow: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08)))
         .opacity(done ? 0.7 : 1)
         .onHover { hovering = $0 }
+        // Drag the row to another day's heading, between other rows, or back to the right
+        // to take it off the plan.
+        .onDrag {
+            onDragStart()
+            return NSItemProvider(object: PlanDrag.string(item.ref, fromPlan: true) as NSString)
+        } preview: {
+            Text(item.title).padding(6).background(Color.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+        }
     }
 
     /// The task's subtasks, tickable right here.
@@ -634,13 +694,18 @@ private struct PlanRow: View {
     }
 }
 
-/// What's carried when a task or subtask is dragged onto a day: "plan|taskID|subtaskID".
+/// What's carried when a task or subtask is dragged onto a day: "plan|taskID|subtaskID",
+/// with "|p" at the end when it's a row of a plan (so dropping it on the right unplans it).
 enum PlanDrag {
-    static func string(_ ref: PlanItem.Ref) -> String { "plan|\(ref.taskID)|\(ref.subtaskID ?? "")" }
+    static func string(_ ref: PlanItem.Ref, fromPlan: Bool = false) -> String {
+        "plan|\(ref.taskID)|\(ref.subtaskID ?? "")" + (fromPlan ? "|p" : "")
+    }
+
+    static func isFromPlan(_ s: String) -> Bool { s.hasSuffix("|p") && ref(s) != nil }
 
     static func ref(_ s: String) -> PlanItem.Ref? {
         let parts = s.split(separator: "|", omittingEmptySubsequences: false)
-        guard parts.count == 3, parts[0] == "plan", !parts[1].isEmpty else { return nil }
+        guard parts.count == 3 || (parts.count == 4 && parts[3] == "p"), parts[0] == "plan", !parts[1].isEmpty else { return nil }
         return PlanItem.Ref(taskID: String(parts[1]), subtaskID: parts[2].isEmpty ? nil : String(parts[2]))
     }
 }

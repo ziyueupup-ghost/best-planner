@@ -322,6 +322,12 @@ input[type=color] { width: 38px; height: 34px; padding: 2px; }
 .small { font-size: var(--caption); }
 .plan-day { border-bottom: 1px solid var(--line); padding: 4px 0 8px; }
 .plan-day-head { display: flex; align-items: center; gap: 10px; border-radius: 8px; padding: 4px 6px; }
+.plan-row.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+.plan-row.drop-after { box-shadow: 0 3px 0 var(--accent); }
+.plan-row[draggable=true] { cursor: grab; }
+.pick-col.drop { outline: 2px dashed #d33; outline-offset: -4px; background: color-mix(in srgb, #d33 6%, transparent); }
+.pick-col.drop::before { content: attr(data-drop-hint); display: block; color: #d33; font-weight: 600; padding: 6px 0; }
+.date-pop { display: flex; gap: 8px; padding: 10px; align-items: center; }
 .plan-day-head.drop { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .plan-day-btn { display: flex; align-items: baseline; gap: 8px; flex: 1; text-align: left; padding: 4px 0; }
 .plan-day-btn b { font-size: var(--title3); }

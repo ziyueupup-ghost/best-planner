@@ -68,6 +68,12 @@ extension Date {
     }
 
     /// The next few days from today, for "加到…" menus.
+    /// Today and the next six days.
+    static var weekChoices: [Date] {
+        let cal = Calendar.current, today = cal.startOfDay(for: Date())
+        return (0..<7).map { cal.date(byAdding: .day, value: $0, to: today)! }
+    }
+
     static var planChoices: [Date] {
         let cal = Calendar.current, today = cal.startOfDay(for: Date())
         return (0..<4).map { cal.date(byAdding: .day, value: $0, to: today)! }

@@ -781,6 +781,35 @@ final class BoardStore: ObservableObject {
 
     func removeFromPlan(_ id: String) { removeFromPlan(PlanItem.Ref(taskID: id)) }
 
+    /// Puts these on `day`'s plan at `index` (moving them off any other day), keeping the
+    /// rest of that day in order. Used for dragging within a day and from one day to another.
+    func placeInPlan(_ refs: [PlanItem.Ref], day: Date, at index: Int) {
+        let start = Calendar.current.startOfDay(for: day)
+        var b = board
+        for ref in refs {
+            guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
+            if let sid = ref.subtaskID {
+                if let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }) { b.tasks[i].subtasks[j].planDay = start }
+            } else {
+                b.tasks[i].planDay = start
+            }
+        }
+        var order = board.plan(for: start).map(\.ref).filter { !refs.contains($0) }
+        let moved = refs.filter { r in b.tasks.contains { $0.id == r.taskID } }
+        order.insert(contentsOf: moved, at: min(max(0, index - board.plan(for: start).prefix(index).filter { refs.contains($0.ref) }.count), order.count))
+        for (n, ref) in order.enumerated() {
+            guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
+            if let sid = ref.subtaskID {
+                if let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }) { b.tasks[i].subtasks[j].planOrder = Double(n) }
+            } else {
+                b.tasks[i].planOrder = Double(n)
+            }
+        }
+        guard b != board else { return }
+        board = b
+        persist()
+    }
+
     /// The day's plan in this new order.
     func reorderPlan(_ refs: [PlanItem.Ref]) {
         var b = board
