@@ -60,8 +60,11 @@ function mergeTask(b, m, t) {
   const r = mergeFields(b, m, t);
   for (const k of ["tagIDs", "flagIDs", "contactIDs"]) r[k] = mergeIDs(b[k], m[k], t[k]);
   for (const k of ["subtasks", "dates", "autoMoves", "links", "dependencies"]) r[k] = mergeList(b[k], m[k], t[k]);
-  const theirHistory = new Set((t.history || []).map((h) => h.id));
-  r.history = [...(t.history || []), ...(m.history || []).filter((h) => !theirHistory.has(h.id))]
+  // Entries from both sides, minus the ones either side deleted (in base, gone from it).
+  const ids = (x) => new Set((x || []).map((h) => h.id));
+  const baseHistory = ids(b.history), mineHistory = ids(m.history), theirHistory = ids(t.history);
+  r.history = [...(t.history || []).filter((h) => !baseHistory.has(h.id) || mineHistory.has(h.id)),
+    ...(m.history || []).filter((h) => !theirHistory.has(h.id) && !baseHistory.has(h.id))]
     .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
   const theirSessions = new Set((t.focusSessions || []).map((s) => s.id));
   r.focusSessions = [...(t.focusSessions || []), ...(m.focusSessions || []).filter((s) => !theirSessions.has(s.id))];

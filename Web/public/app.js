@@ -135,7 +135,19 @@ function setOnline(on) {
 
 setInterval(() => { if (document.visibilityState === "visible") sync(); }, 10_000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); else if (store.dirty) sync(); });
-setInterval(() => { if (store.board && applyDueMoves()) changed(); }, 30_000);
+setInterval(() => { if (store.board && (applyDueMoves() | startPlanOncePerDay())) changed(); }, 30_000);
+/** Once a day: what's planned for today starts (only once, so a task moved back by hand stays). */
+function startPlanOncePerDay() {
+  const key = dayKey(new Date());
+  let last = null;
+  try { last = localStorage.getItem("bp.planStarted"); } catch {}
+  if (last === key) return 0;
+  try { localStorage.setItem("bp.planStarted", key); } catch {}
+  ui.openDays.add(key);   // a new day (page left open past midnight): open it
+  const moved = startTodaysPlan();
+  if (!moved) renderBoard();
+  return moved;
+}
 
 // MARK: - Board helpers
 
@@ -610,6 +622,16 @@ function linkHTML(l) {
   return `<a class="link-row" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="meta-icon">${icon("link")}</span><span class="link-name">${name}</span></a>`;
 }
 
+/** A task's or subtask's links as small chips (files show where they are). */
+const linkChips = (links) => links?.length ? `<div class="link-chips">${links.map(linkHTML).join("")}</div>` : "";
+/** Asks for a web address; returns a link or null. */
+function askLink() {
+  let text = (prompt(t("粘贴网址")) || "").trim();
+  if (!text) return null;
+  if (!text.includes("://")) text = "https://" + text;
+  try { const u = new URL(text); return { id: uuid(), title: u.host || text, url: u.href }; } catch { return null; }
+}
+
 const KINDS = ["deadline", "milestone", "start", "reminder"];
 const kindTitle = (k) => ({ deadline: t("截止"), milestone: t("里程碑"), start: t("开始"), reminder: t("提醒") }[k] || k);
 const kindIcon = (k) => ({ deadline: "⚠︎", milestone: "⚑", start: "▶︎", reminder: "🔔" }[k] || "•");
@@ -931,9 +953,11 @@ function renderEditor(force = false) {
           : `<button class="mini" data-ed="subadddate">📅</button>`}
           <span class="sub-actions">
             ${s.date ? `<button class="mini" data-ed="subrmdate" title="${t("去掉日期")}">⌫</button>` : ""}
+            <button class="mini" data-ed="sublink" title="${t("添加链接")}">${icon("link")}</button>
             <button class="mini" data-ed="subup" ${i === 0 ? "disabled" : ""}>↑</button>
             <button class="mini danger" data-ed="subrm" aria-label="${t("删除")}">×</button>
           </span>
+          ${s.links?.length ? `<div class="sub-links">${s.links.map((l) => `<span class="sub-link" data-link="${esc(l.id)}">${linkHTML(l)}<button class="mini" data-ed="sublinkrm" title="${t("移除（不会删除文件）")}">×</button></span>`).join("")}</div>` : ""}
         </div>`).join("")}
       </div>
       <div class="inline-add"><input id="ed-newsub" type="text" placeholder="${t("输入子任务，回车添加")}"><button data-ed="addsub">${t("添加")}</button></div>
@@ -1125,6 +1149,8 @@ document.addEventListener("click", (e) => {
     }
     case "subdone": if (sub) { sub.isDone = !sub.isDone; addHistory(task, "subtask", t(sub.isDone ? "完成子任务「{}」" : "重新打开子任务「{}」", sub.title)); } break;
     case "subrm": if (sub) { task.subtasks = task.subtasks.filter((x) => x !== sub); addHistory(task, "subtask", t("删除子任务「{}」", sub.title)); } break;
+    case "sublink": if (sub) { const link = askLink(); if (!link) return; sub.links = [...(sub.links || []), link]; } break;
+    case "sublinkrm": if (sub) { const id = el.closest("[data-link]")?.dataset.link; sub.links = (sub.links || []).filter((l) => l.id !== id); } break;
     case "subup": if (sub) { const i = task.subtasks.indexOf(sub); if (i > 0) task.subtasks.splice(i - 1, 0, ...task.subtasks.splice(i, 1)); } break;
     case "subadddate": if (sub) { sub.date = iso(startOfDay(new Date())); sub.hasTime = false; } break;
     case "subrmdate": if (sub) { delete sub.date; sub.hasTime = false; } break;
@@ -1531,6 +1557,7 @@ const planFor = (d) => plannedItems().filter((it) => sameDay(itemDay(it), d)).so
 function addToPlan(refs, d) {
   const day = iso(startOfDay(new Date(d)));
   let next = Math.max(0, ...planFor(d).map(itemOrder)) + 1;
+  const added = new Set();
   for (const ref of refs) {
     const it = itemOf(ref);
     if (!it || sameDay(itemDay(it), d)) continue;
@@ -1538,8 +1565,29 @@ function addToPlan(refs, d) {
     target.planDay = day;
     target.planOrder = next++;
     it.task.updatedAt = nowISO();
+    added.add(it.task.id);
   }
+  startTodaysPlan(added);
   changed();
+}
+
+/** A task still in the first status (待办) that is — itself or a subtask — on today's plan
+ *  moves to the next status (进行中), as on the Mac. Tasks still waiting for another stay.
+ *  `ids` limits it to these tasks (the ones just put on the plan). */
+function startTodaysPlan(ids = null) {
+  const cols = B().columns, first = cols[0], next = cols[1];
+  if (!first || !next || next.isDone) return 0;
+  const today = new Date();
+  let moved = 0;
+  for (const task of B().tasks) {
+    if (task.columnID !== first.id || (ids && !ids.has(task.id))) continue;
+    const planned = sameDay(task.planDay, today) || task.subtasks.some((s) => sameDay(s.planDay, today));
+    if (!planned || unmetDeps(task, next.id).length) continue;
+    moveTask(task, next.id, true);
+    task.history[task.history.length - 1].text = t("📅 排进今天的计划，自动开始");
+    moved++;
+  }
+  return moved;
 }
 
 function setPlanOrder(items) {
@@ -1603,12 +1651,14 @@ function renderPlanRow(it, i, count) {
       <div class="plan-meta">${g ? tagChipHTML(g, { small: true }) : ""}
         ${sub ? `<span class="muted">↳ ${esc(t("「{}」的子任务", task.title))}</span>` : `<span class="muted">${esc(column(task.columnID)?.name || "")}</span>`}
       </div>
-      ${!sub && task.subtasks.length ? `<div class="plan-subs">${task.subtasks.map((s) => `
+      ${linkChips(sub ? sub.links : task.links)}
+      ${!sub && task.subtasks.length ? `<div class="plan-subs">${task.subtasks.map((s) => `<div class="plan-sub-line">
         <button class="plan-sub ${s.isDone ? "done" : ""}" data-act="psub" data-id="${esc(s.id)}" draggable="true" data-drag="${esc(refOf(task, s))}">
           <span class="sq">${s.isDone ? "☑" : "☐"}</span>${esc(s.title)}${s.planDay && !s.isDone && daysFromToday(s.planDay) >= 0 && !sameDay(s.planDay, itemDay(it)) ? `<span class="plan-other">${esc(planDayName(s.planDay))}</span>` : ""}
-        </button>`).join("")}</div>` : ""}
+        </button>${linkChips(s.links)}<button class="mini plink" data-act="plink" data-ref="${esc(refOf(task, s))}" title="${t("添加链接")}">${icon("link")}</button></div>`).join("")}</div>` : ""}
     </div>
     <div class="plan-actions">
+      <button class="mini" data-act="plink" title="${t("添加链接")}">${icon("link")}</button>
       <button class="mini" data-act="pup" ${i === 0 ? "disabled" : ""} title="${t("往前")}">↑</button>
       <button class="mini" data-act="pdown" ${i === count - 1 ? "disabled" : ""} title="${t("往后")}">↓</button>
       <button class="mini" data-act="pmove" data-menu="pmove-${esc(it.ref)}" title="${t("改到别的日子（也可以直接拖到那天的标题上）")}">${icon("calendar")}</button>
@@ -1716,7 +1766,9 @@ function placeInPlan(refs, d, index = Infinity) {
   const shift = before.slice(0, index).filter((x) => refs.includes(x.ref)).length;
   const order = before.filter((x) => !refs.includes(x.ref));
   const moved = refs.map(itemOf).filter(Boolean);
+  const newcomers = new Set(moved.filter((it) => !before.some((x) => x.ref === it.ref)).map((it) => it.task.id));
   for (const it of moved) { (it.sub || it.task).planDay = day; it.task.updatedAt = nowISO(); }
+  if (sameDay(d, new Date())) startTodaysPlan(newcomers);
   order.splice(Math.max(0, Math.min(index - shift, order.length)), 0, ...moved);
   setPlanOrder(order);
 }
@@ -1748,6 +1800,10 @@ function planClick(el, e) {
     } break;
     case "prm": if (it) { (it.sub || it.task).planDay = null; delete (it.sub || it.task).planDay; it.task.updatedAt = nowISO(); changed(); } break;
     case "pmove": if (it) showMenu(el, dayMenu((d) => { ui.openDays.add(dayKey(d)); addToPlan([it.ref], d); }, el)); break;
+    case "plink": if (it) {
+      const link = askLink();
+      if (link) { const target = it.sub || it.task; target.links = [...(target.links || []), link]; it.task.updatedAt = nowISO(); changed(); }
+    } break;
     case "psubs": { const id = el.dataset.id; ui.pickOpen.has(id) ? ui.pickOpen.delete(id) : ui.pickOpen.add(id); renderBoard(); break; }
   }
 }

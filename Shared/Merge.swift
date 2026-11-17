@@ -35,6 +35,7 @@ extension PlannerTask {
                             date: pick(b.date, m.date, t.date), hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
             s.planDay = pick(b.planDay, m.planDay, t.planDay)
             s.planOrder = pick(b.planOrder, m.planOrder, t.planOrder)
+            s.links = mergeLinks(base: b.links, mine: m.links, theirs: t.links)
             return s
         }
         r.dates = mergeList(base: base.dates, mine: mine.dates, theirs: theirs.dates) { b, m, t in
@@ -45,9 +46,7 @@ extension PlannerTask {
             AutoMove(id: t.id, date: pick(b.date, m.date, t.date), columnID: pick(b.columnID, m.columnID, t.columnID),
                      hasTime: pick(b.hasTime, m.hasTime, t.hasTime))
         }
-        r.links = mergeList(base: base.links, mine: mine.links, theirs: theirs.links) { b, m, t in
-            TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url), device: pick(b.device, m.device, t.device))
-        }
+        r.links = mergeLinks(base: base.links, mine: mine.links, theirs: theirs.links)
         return r
     }
 
@@ -112,8 +111,12 @@ extension PlannerTask {
     static func mergeAll(base: PlannerTask, mine: PlannerTask, theirs: PlannerTask) -> PlannerTask {
         func pick<T: Equatable>(_ b: T, _ m: T, _ t: T) -> T { m != b ? m : t }
         var r = merge(base: base, mine: mine, theirs: theirs)
-        let theirHistory = Set(theirs.history.map(\.id))
-        r.history = (theirs.history + mine.history.filter { !theirHistory.contains($0.id) }).sorted { $0.date < $1.date }
+        // Entries from both sides, minus the ones either side deleted (in base, gone from it).
+        let baseHistory = Set(base.history.map(\.id))
+        let mineHistory = Set(mine.history.map(\.id)), theirHistory = Set(theirs.history.map(\.id))
+        r.history = (theirs.history.filter { !baseHistory.contains($0.id) || mineHistory.contains($0.id) }
+            + mine.history.filter { !theirHistory.contains($0.id) && !baseHistory.contains($0.id) })
+            .sorted { $0.date < $1.date }
         let theirSessions = Set(theirs.focusSessions.map(\.id))
         r.focusSessions = theirs.focusSessions + mine.focusSessions.filter { !theirSessions.contains($0.id) }
         r.completedAt = pick(base.completedAt, mine.completedAt, theirs.completedAt)
@@ -178,5 +181,13 @@ extension Board {
             }
         }
         return out
+    }
+}
+
+/// Attached files and links (of a task or a subtask), merged item by item.
+func mergeLinks(base: [TaskLink], mine: [TaskLink], theirs: [TaskLink]) -> [TaskLink] {
+    func pick<T: Equatable>(_ b: T, _ m: T, _ t: T) -> T { m != b ? m : t }
+    return mergeList(base: base, mine: mine, theirs: theirs) { b, m, t in
+        TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url), device: pick(b.device, m.device, t.device))
     }
 }

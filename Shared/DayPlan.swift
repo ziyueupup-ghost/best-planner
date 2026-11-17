@@ -79,3 +79,40 @@ extension Date {
         return (0..<4).map { cal.date(byAdding: .day, value: $0, to: today)! }
     }
 }
+
+extension Board {
+    /// The status a task goes to once it's on today's plan: the one after the first
+    /// (usually 进行中), unless that's a done status.
+    var startedColumnID: String? {
+        guard columns.count > 1, !columns[1].isDone else { return nil }
+        return columns[1].id
+    }
+
+    /// A task still in the first status (待办) that is — itself or one of its subtasks — on
+    /// today's plan moves to the next status (进行中), with a line in its history. Tasks
+    /// still waiting for another one to finish (or start) stay where they are. `ids` limits
+    /// it to these tasks (the ones just put on the plan).
+    /// Returns how many moved.
+    @discardableResult
+    mutating func startTodaysPlan(now: Date = Date(), only ids: Set<String>? = nil) -> Int {
+        guard let first = columns.first?.id, let target = startedColumnID else { return 0 }
+        let cal = Calendar.current
+        let oldColumns = columns
+        var moved = 0
+        for i in tasks.indices where tasks[i].columnID == first && (ids?.contains(tasks[i].id) ?? true) {
+            let t0 = tasks[i]
+            let planned = t0.planDay.map { cal.isDate($0, inSameDayAs: now) } ?? false
+                || t0.subtasks.contains { s in s.planDay.map { cal.isDate($0, inSameDayAs: now) } ?? false }
+            guard planned, unmetDependencies(of: t0, movingTo: target).isEmpty else { continue }
+            var t = t0
+            t.columnID = target
+            t.order = topOrder(in: target)
+            record(from: t0, to: &t, oldColumns: oldColumns)
+            Board.appendHistory(&t, HistoryEntry(kind: .moved, text: L("📅 排进今天的计划，自动开始")))
+            t.updatedAt = now
+            tasks[i] = t
+            moved += 1
+        }
+        return moved
+    }
+}

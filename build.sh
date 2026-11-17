@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.12.0"
+VERSION="1.13.0"
 MODE="${1:-install}"
 APP_ID="com.bestplanner.app"
 WIDGET_ID="$APP_ID.widget"
@@ -38,6 +38,9 @@ compile() {
 
 echo "▸ Compiling app (${ARCHS[*]})"
 compile "$APP/Contents/MacOS/Planner" Shared/*.swift Core/*.swift App/*.swift
+# Drop local symbols from the app (only useful to a debugger): about a third of its size.
+# Not the widget: its tick buttons' metadata is read from those symbols below.
+strip -x "$APP/Contents/MacOS/Planner"
 
 echo "▸ Compiling widget (${ARCHS[*]})"
 # Extensions must enter through Foundation's NSExtensionMain (as Xcode links them),

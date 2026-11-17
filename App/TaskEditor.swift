@@ -79,7 +79,7 @@ struct TaskEditor: View {
         .onDisappear {
             addSubtask()
             autosave()
-            if exists, !deleted { store.addNote(task.id, newNote) }
+            if exists, !deleted { commitNote() }
         }
         .onExitCommand { dismiss() }
         .alert(L("删除「\(task.title)」？"), isPresented: $confirmDelete) {
@@ -480,12 +480,22 @@ struct TaskEditor: View {
                         .labelsHidden()
                         .strikethrough(sub.isDone)
                     SubtaskDateButton(date: $sub.date, hasTime: $sub.hasTime, isDone: sub.isDone)
+                    AddLinkButton { links in
+                        sub.links += links.filter { l in !sub.links.contains { $0.url == l.url } }
+                    }
+                    .foregroundStyle(.secondary)
                     Button {
                         task.subtasks.removeAll { $0.id == sub.id }
                     } label: {
                         Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                }
+                .linkDrop { links in sub.links += links.filter { l in !sub.links.contains { $0.url == l.url } } }
+                // This step's own files and links.
+                if !sub.links.isEmpty {
+                    LinkChips(links: sub.links, remove: { link in sub.links.removeAll { $0.id == link.id } }, limit: 6)
+                        .padding(.leading, 48)
                 }
             }
             HStack {
@@ -541,30 +551,10 @@ struct TaskEditor: View {
                     Image(systemName: "text.bubble").foregroundStyle(.secondary)
                     TextField(L("添加记录"), text: $newNote, prompt: Text(L("写一条记录，回车添加（例如：和老师讨论过）")))
                         .labelsHidden()
-                        .onSubmit {
-                            store.addNote(task.id, newNote)
-                            newNote = ""
-                        }
+                        .onSubmit(commitNote)
                 }
                 ForEach(stored.history.reversed()) { entry in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: entry.kind.symbol)
-                            .foregroundStyle(entry.kind.color)
-                            .frame(width: 16)
-                        Text(entry.text)
-                            .foregroundStyle(entry.kind == .note ? .primary : .secondary)
-                            .textSelection(.enabled)
-                        Spacer(minLength: 8)
-                        Text(entry.date.dayTimeLabel)
-                            .scaledFont(.caption, monospacedDigit: true)
-                            .foregroundStyle(.tertiary)
-                    }
-                    .scaledFont(.callout)
-                    .contextMenu {
-                        Button(L("删除这条记录"), role: .destructive) {
-                            store.deleteHistoryEntry(task.id, entry.id)
-                        }
-                    }
+                    HistoryRow(entry: entry) { store.deleteHistoryEntry(task.id, entry.id) }
                 }
             } else {
                 Text(L("创建任务后会自动记录历史")).foregroundStyle(.secondary)
@@ -572,9 +562,22 @@ struct TaskEditor: View {
         } header: {
             Text(L("完成与历史"))
         } footer: {
-            Text(L("移动状态、完成、修改内容、勾选子任务都会自动记录。右键可以删除某条记录。"))
+            Text(L("移动状态、完成、修改内容、勾选子任务都会自动记录。鼠标移到某条记录上，点右边的 × 可以删除。"))
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Adds what's typed as a record. An email dropped into the field by mistake (its raw
+    /// text) is saved as an .eml attachment instead.
+    private func commitNote() {
+        let text = newNote
+        newNote = ""
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if LinkDrop.isEmail(text), let url = LinkDrop.store(Data(text.utf8), name: LinkDrop.emailName(text) + ".eml") {
+            task.links.append(TaskLink.from(url))
+        } else {
+            store.addNote(task.id, text)
         }
     }
 
@@ -664,5 +667,50 @@ struct TaskEditor: View {
         let merged = PlannerTask.merge(base: base, mine: task, theirs: stored)
         base = stored
         if !merged.sameEditableContent(as: task) { task = merged }
+    }
+}
+
+
+/// One line of a task's history: long records show their first lines (click to see all);
+/// × (on hover) or right-click deletes it.
+private struct HistoryRow: View {
+    let entry: HistoryEntry
+    let delete: () -> Void
+    @State private var hovering = false
+    @State private var expanded = false
+
+    var body: some View {
+        let long = entry.text.count > 300 || entry.text.filter { $0 == "\n" }.count > 5
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: entry.kind.symbol)
+                .foregroundStyle(entry.kind.color)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(long && !expanded ? String(entry.text.prefix(300)) + "…" : entry.text)
+                    .foregroundStyle(entry.kind == .note ? .primary : .secondary)
+                    .lineLimit(expanded ? nil : 6)
+                    .textSelection(.enabled)
+                if long {
+                    Button(expanded ? L("收起") : L("展开全部（\(entry.text.count) 字）")) { expanded.toggle() }
+                        .buttonStyle(.link)
+                        .scaledFont(.caption)
+                }
+            }
+            Spacer(minLength: 8)
+            Text(entry.date.dayTimeLabel)
+                .scaledFont(.caption, monospacedDigit: true)
+                .foregroundStyle(.tertiary)
+            Button(action: delete) { Image(systemName: "xmark.circle.fill") }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .opacity(hovering ? 1 : 0)
+                .help(L("删除这条记录"))
+        }
+        .scaledFont(.callout)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button(L("删除这条记录"), role: .destructive, action: delete)
+        }
     }
 }

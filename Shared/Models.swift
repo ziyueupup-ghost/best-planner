@@ -348,6 +348,8 @@ struct Subtask: Codable, Identifiable, Hashable {
     /// 今日: on a day's plan by itself (Shared/DayPlan.swift).
     var planDay: Date?
     var planOrder: Double = 0
+    /// Files, folders and web links for this step alone.
+    var links: [TaskLink] = []
 
     init(id: String = UUID().uuidString, title: String, isDone: Bool = false, date: Date? = nil, hasTime: Bool = false) {
         self.id = id
@@ -369,6 +371,7 @@ struct Subtask: Codable, Identifiable, Hashable {
         hasTime = (try? c.decodeIfPresent(Bool.self, forKey: .hasTime)) ?? false
         planDay = try? c.decodeIfPresent(Date.self, forKey: .planDay)
         planOrder = (try? c.decodeIfPresent(Double.self, forKey: .planOrder)) ?? 0
+        links = (try? c.decodeIfPresent([TaskLink].self, forKey: .links)) ?? []
     }
 
     /// Past its time (or, without one, before today) and not ticked.

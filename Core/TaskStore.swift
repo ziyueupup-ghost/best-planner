@@ -330,11 +330,20 @@ final class BoardStore: ObservableObject {
     /// Moves tasks whose planned move is due (see `Board.applyDueMoves`).
     func applyDueMoves() {
         let now = Date()
-        guard board.tasks.contains(where: { t in
-            t.autoMoves.contains { $0.dueDate <= now } || t.dates.contains { $0.moveTo != nil && $0.dueDate <= now }
-        }) else { return }
         var b = board
-        b.applyDueMoves()
+        if board.tasks.contains(where: { t in
+            t.autoMoves.contains { $0.dueDate <= now } || t.dates.contains { $0.moveTo != nil && $0.dueDate <= now }
+        }) {
+            b.applyDueMoves()
+        }
+        // Once a day (and at the first check of the day): what's planned for today starts.
+        // Only once, so a task moved back to 待办 by hand stays there.
+        let day = Calendar.current.startOfDay(for: now).timeIntervalSince1970
+        if UserDefaults.standard.double(forKey: "planStartedDay") != day {
+            UserDefaults.standard.set(day, forKey: "planStartedDay")
+            b.startTodaysPlan(now: now)
+        }
+        guard b != board else { return }
         board = b
         persist()
     }
@@ -760,6 +769,7 @@ final class BoardStore: ObservableObject {
             }
             next += 1
         }
+        b.startTodaysPlan(only: Set(refs.map(\.taskID)))
         guard b != board else { return }
         board = b
         persist()
@@ -786,6 +796,8 @@ final class BoardStore: ObservableObject {
     func placeInPlan(_ refs: [PlanItem.Ref], day: Date, at index: Int) {
         let start = Calendar.current.startOfDay(for: day)
         var b = board
+        let alreadyThere = Set(board.plan(for: start).map(\.ref))
+        let newcomers = Set(refs.filter { !alreadyThere.contains($0) }.map(\.taskID))
         for ref in refs {
             guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
             if let sid = ref.subtaskID {
@@ -805,9 +817,32 @@ final class BoardStore: ObservableObject {
                 b.tasks[i].planOrder = Double(n)
             }
         }
+        b.startTodaysPlan(only: newcomers)
         guard b != board else { return }
         board = b
         persist()
+    }
+
+    /// Attaches files or links to a task, or to one of its subtasks (skipping ones already there).
+    func addLinks(_ links: [TaskLink], to ref: PlanItem.Ref) {
+        modify(ref.taskID) { t in
+            if let sid = ref.subtaskID {
+                guard let j = t.subtasks.firstIndex(where: { $0.id == sid }) else { return }
+                t.subtasks[j].links += links.filter { l in !t.subtasks[j].links.contains { $0.url == l.url } }
+            } else {
+                t.links += links.filter { l in !t.links.contains { $0.url == l.url } }
+            }
+        }
+    }
+
+    func removeLink(_ id: String, from ref: PlanItem.Ref) {
+        modify(ref.taskID) { t in
+            if let sid = ref.subtaskID {
+                if let j = t.subtasks.firstIndex(where: { $0.id == sid }) { t.subtasks[j].links.removeAll { $0.id == id } }
+            } else {
+                t.links.removeAll { $0.id == id }
+            }
+        }
     }
 
     /// The day's plan in this new order.

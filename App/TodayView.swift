@@ -72,6 +72,10 @@ struct TodayView: View {
                     .transition(.move(edge: .trailing))
             }
         }
+        // Left open past midnight: open the new today (and redraw with the new date).
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
+            openDays.insert(cal.startOfDay(for: Date()))
+        }
     }
 
     /// The divider between the plan and the pick panel: drag it to change the panel's width.
@@ -353,7 +357,8 @@ struct TodayView: View {
                 .help(L("按日期列出多少天"))
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
+                // Lazy: only the rows on screen are built (the list can be long).
+                LazyVStack(alignment: .leading, spacing: 4) {
                     let groups = picks
                     if groups.isEmpty {
                         Text(search.isEmpty ? L("没完成的任务都已经排进\(today.planDayName)的计划了。") : L("没有找到。"))
@@ -361,24 +366,23 @@ struct TodayView: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(groups) { g in
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("\(g.title) · \(g.items.count)")
-                                    .scaledFont(.caption, weight: .semibold)
-                                    .foregroundStyle(g.isOverdue ? .red : .secondary)
-                                Spacer()
-                                if g.id != "undated", g.id != "later", g.items.count > 1 {
-                                    Button(L("全部加入")) { withAnimation(.snappy) { store.addToPlan(g.items.map(\.0.ref), day: today) } }
-                                        .buttonStyle(.link)
-                                        .scaledFont(.caption)
-                                }
+                        HStack {
+                            Text("\(g.title) · \(g.items.count)")
+                                .scaledFont(.caption, weight: .semibold)
+                                .foregroundStyle(g.isOverdue ? .red : .secondary)
+                            Spacer()
+                            if g.id != "undated", g.id != "later", g.items.count > 1 {
+                                Button(L("全部加入")) { withAnimation(.snappy) { store.addToPlan(g.items.map(\.0.ref), day: today) } }
+                                    .buttonStyle(.link)
+                                    .scaledFont(.caption)
                             }
-                            ForEach(g.items, id: \.0.id) { item, detail in
-                                if let sub = item.subtask {
-                                    subPickRow(item.task, sub, detail, overdue: g.isOverdue)
-                                } else {
-                                    pickRow(item.task, detail)
-                                }
+                        }
+                        .padding(.top, g.id == groups.first?.id ? 0 : 10)
+                        ForEach(g.items, id: \.0.id) { item, detail in
+                            if let sub = item.subtask {
+                                subPickRow(item.task, sub, detail, overdue: g.isOverdue)
+                            } else {
+                                pickRow(item.task, detail)
                             }
                         }
                     }
@@ -595,6 +599,10 @@ private struct PlanRow: View {
                     }
                 }
                 .scaledFont(.caption)
+                // Its files and links (a subtask's own, or the task's).
+                LinkChips(links: item.subtask?.links ?? task.links) { link in
+                    withAnimation(.snappy) { store.removeLink(link.id, from: item.ref) }
+                }
                 if item.subtask == nil, !task.subtasks.isEmpty, !subtasksFolded {
                     subtaskList(task)
                 }
@@ -607,6 +615,7 @@ private struct PlanRow: View {
                     .fixedSize()
             }
             HStack(spacing: 2) {
+                AddLinkButton { links in withAnimation(.snappy) { store.addLinks(links, to: item.ref) } }
                 Button { move(-1) } label: { Image(systemName: "chevron.up") }
                     .disabled(number == 1)
                     .help(L("往前"))
@@ -650,6 +659,8 @@ private struct PlanRow: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08)))
         .opacity(done ? 0.7 : 1)
         .onHover { hovering = $0 }
+        // A file or folder (or web link) dropped on the row is attached to it.
+        .linkDrop(types: [.fileURL, .url]) { links in withAnimation(.snappy) { store.addLinks(links, to: item.ref) } }
         // Drag the row to another day's heading, between other rows, or back to the right
         // to take it off the plan.
         .onDrag {
@@ -660,34 +671,47 @@ private struct PlanRow: View {
         }
     }
 
-    /// The task's subtasks, tickable right here.
+    /// The task's subtasks, tickable right here, each with its own files and links.
     private func subtaskList(_ task: PlannerTask) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             ForEach(task.subtasks) { sub in
-                Button { withAnimation(.snappy) { store.toggleSubtask(task.id, sub.id) } } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: sub.isDone ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(sub.isDone ? Color.green : Color.secondary)
-                        Text(sub.title.isEmpty ? L("（无标题）") : sub.title)
-                            .strikethrough(sub.isDone, color: .secondary)
-                            .foregroundStyle(sub.isDone ? .secondary : .primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        if let label = sub.dateLabel {
-                            Text(label).scaledFont(.caption).foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
+                let ref = PlanItem.Ref(taskID: task.id, subtaskID: sub.id)
+                HStack(spacing: 6) {
+                    Button { withAnimation(.snappy) { store.toggleSubtask(task.id, sub.id) } } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: sub.isDone ? "checkmark.square.fill" : "square")
+                                .foregroundStyle(sub.isDone ? Color.green : Color.secondary)
+                            Text(sub.title.isEmpty ? L("（无标题）") : sub.title)
+                                .strikethrough(sub.isDone, color: .secondary)
+                                .foregroundStyle(sub.isDone ? .secondary : .primary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            if let label = sub.dateLabel {
+                                Text(label).scaledFont(.caption).foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
+                            }
+                            if let d = sub.planDay, d >= Calendar.current.startOfDay(for: Date()), !sub.isDone {
+                                Label(d.planDayName, systemImage: "calendar").scaledFont(.caption).foregroundStyle(.orange)
+                                    .help(L("这个子任务单独排在\(d.planDayName)"))
+                            }
                         }
-                        if let d = sub.planDay, d >= Calendar.current.startOfDay(for: Date()), !sub.isDone {
-                            Label(d.planDayName, systemImage: "calendar").scaledFont(.caption).foregroundStyle(.orange)
-                                .help(L("这个子任务单独排在\(d.planDayName)"))
-                        }
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .draggable(PlanDrag.string(ref)) {
+                        Text(sub.title).padding(6).background(Color.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                    LinkChips(links: sub.links) { link in
+                        withAnimation(.snappy) { store.removeLink(link.id, from: ref) }
+                    }
+                    AddLinkButton { links in withAnimation(.snappy) { store.addLinks(links, to: ref) } }
+                        .foregroundStyle(.secondary)
+                        .opacity(hovering ? 1 : 0)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                // Dropped on this subtask's line: attached to the subtask, not the task.
+                .linkDrop(types: [.fileURL, .url]) { links in withAnimation(.snappy) { store.addLinks(links, to: ref) } }
                 .scaledFont(.callout)
-                .draggable(PlanDrag.string(PlanItem.Ref(taskID: task.id, subtaskID: sub.id))) {
-                    Text(sub.title).padding(6).background(Color.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 8))
-                }
             }
         }
         .padding(.top, 4)

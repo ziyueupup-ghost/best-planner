@@ -373,3 +373,16 @@ input[type=color] { width: 38px; height: 34px; padding: 2px; }
 .pick-body .plan-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tool.text { white-space: nowrap; }
 .plan-other, .plan-meta .muted { white-space: nowrap; }
+
+/* Links on plan rows and subtasks */
+.link-chips { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: var(--caption); margin-top: 3px; }
+.link-chips .link-row { color: var(--accent-ui); background: color-mix(in srgb, var(--accent-ui) 8%, transparent); border-radius: 999px; padding: 1px 8px; max-width: 220px; }
+.link-chips .link-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-sub-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.plan-sub-line .link-chips { margin-top: 0; }
+.plan-sub-line .plink { opacity: 0; }
+.plan-row:hover .plan-sub-line .plink, .plan-sub-line .plink:focus { opacity: 1; }
+@media (hover: none) { .plan-sub-line .plink { opacity: .6; } }
+.sub-row { flex-wrap: wrap; }
+.sub-links { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 10px; padding-left: 30px; font-size: var(--caption); }
+.sub-link { display: inline-flex; align-items: center; gap: 2px; }
