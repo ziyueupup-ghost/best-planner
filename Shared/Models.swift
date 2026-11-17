@@ -321,6 +321,29 @@ struct FocusSession: Codable, Identifiable, Hashable {
 }
 
 /// A file on this Mac or a web address attached to a task.
+/// One day's share of a task spread over several days (Shared/DayPlan.swift).
+struct PlanPart: Codable, Identifiable, Hashable {
+    var id: String = UUID().uuidString
+    var day: Date
+    /// How much of the task to do that day, 1–100.
+    var percent: Int
+    var isDone = false
+    var order: Double = 0
+
+    init(id: String = UUID().uuidString, day: Date, percent: Int, isDone: Bool = false, order: Double = 0) {
+        self.id = id; self.day = day; self.percent = percent; self.isDone = isDone; self.order = order
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)) ?? UUID().uuidString
+        day = (try? c.decodeIfPresent(Date.self, forKey: .day)) ?? Date()
+        percent = (try? c.decodeIfPresent(Int.self, forKey: .percent)) ?? 0
+        isDone = (try? c.decodeIfPresent(Bool.self, forKey: .isDone)) ?? false
+        order = (try? c.decodeIfPresent(Double.self, forKey: .order)) ?? 0
+    }
+}
+
 struct TaskLink: Codable, Identifiable, Hashable {
     var id: String = UUID().uuidString
     var title: String
@@ -350,6 +373,8 @@ struct Subtask: Codable, Identifiable, Hashable {
     var planOrder: Double = 0
     /// Files, folders and web links for this step alone.
     var links: [TaskLink] = []
+    /// Spread over several days, like a task's `planParts`.
+    var planParts: [PlanPart] = []
 
     init(id: String = UUID().uuidString, title: String, isDone: Bool = false, date: Date? = nil, hasTime: Bool = false) {
         self.id = id
@@ -372,6 +397,7 @@ struct Subtask: Codable, Identifiable, Hashable {
         planDay = try? c.decodeIfPresent(Date.self, forKey: .planDay)
         planOrder = (try? c.decodeIfPresent(Double.self, forKey: .planOrder)) ?? 0
         links = (try? c.decodeIfPresent([TaskLink].self, forKey: .links)) ?? []
+        planParts = (try? c.decodeIfPresent([PlanPart].self, forKey: .planParts)) ?? []
     }
 
     /// Past its time (or, without one, before today) and not ticked.
@@ -426,6 +452,9 @@ struct PlannerTask: Codable, Identifiable, Hashable {
     /// 今日: the day it's planned for, and its place in that day's order (Shared/DayPlan.swift).
     var planDay: Date?
     var planOrder: Double = 0
+    /// Spread over several days instead: how much of it to do on each (e.g. 周三 50%,
+    /// 周四 20%). Each part sits on its day's plan and is ticked on its own.
+    var planParts: [PlanPart] = []
 
     /// The day counts offered for 停留提醒.
     static let staleChoices = [1, 2, 3, 5, 7, 10, 14, 21, 30]
@@ -482,6 +511,7 @@ struct PlannerTask: Codable, Identifiable, Hashable {
         dependencies = (try? c.decodeIfPresent([TaskDependency].self, forKey: .dependencies)) ?? []
         planDay = try? c.decodeIfPresent(Date.self, forKey: .planDay)
         planOrder = (try? c.decodeIfPresent(Double.self, forKey: .planOrder)) ?? 0
+        planParts = (try? c.decodeIfPresent([PlanPart].self, forKey: .planParts)) ?? []
         focusSessions = (try? c.decodeIfPresent([FocusSession].self, forKey: .focusSessions)) ?? []
     }
 

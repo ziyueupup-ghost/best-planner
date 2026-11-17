@@ -758,7 +758,12 @@ final class BoardStore: ObservableObject {
         var b = board
         for ref in refs {
             guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
-            if let sid = ref.subtaskID {
+            if let pid = ref.partID {
+                guard let part = b.tasks[i].part(pid), !Calendar.current.isDate(part.day, inSameDayAs: start) else { continue }
+                b.tasks[i].editPart(pid) { $0.day = start; $0.order = next }
+            } else if b.addRemainingPart(ref, day: start, order: next) != nil {
+                // Spread over days: what's left of it goes on this day.
+            } else if let sid = ref.subtaskID {
                 guard let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }), !b.tasks[i].subtasks[j].isPlanned(on: start) else { continue }
                 b.tasks[i].subtasks[j].planDay = start
                 b.tasks[i].subtasks[j].planOrder = next
@@ -781,7 +786,9 @@ final class BoardStore: ObservableObject {
 
     func removeFromPlan(_ ref: PlanItem.Ref) {
         modify(ref.taskID) { t in
-            if let sid = ref.subtaskID {
+            if let pid = ref.partID {
+                t.removePart(pid)
+            } else if let sid = ref.subtaskID {
                 if let j = t.subtasks.firstIndex(where: { $0.id == sid }) { t.subtasks[j].planDay = nil }
             } else {
                 t.planDay = nil
@@ -798,9 +805,18 @@ final class BoardStore: ObservableObject {
         var b = board
         let alreadyThere = Set(board.plan(for: start).map(\.ref))
         let newcomers = Set(refs.filter { !alreadyThere.contains($0) }.map(\.taskID))
+        // A task (or subtask) spread over days, dropped here as a whole: what's left of it
+        // becomes a part on this day (nothing, when it's all planned already).
+        let next = (board.plan(for: start).map(\.planOrder).max() ?? 0) + 1
+        let refs = refs.compactMap { ref -> PlanItem.Ref? in
+            guard let r = b.addRemainingPart(ref, day: start, order: next) else { return ref }
+            return r.partID == nil ? nil : r
+        }
         for ref in refs {
             guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
-            if let sid = ref.subtaskID {
+            if let pid = ref.partID {
+                b.tasks[i].editPart(pid) { $0.day = start }
+            } else if let sid = ref.subtaskID {
                 if let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }) { b.tasks[i].subtasks[j].planDay = start }
             } else {
                 b.tasks[i].planDay = start
@@ -811,7 +827,9 @@ final class BoardStore: ObservableObject {
         order.insert(contentsOf: moved, at: min(max(0, index - board.plan(for: start).prefix(index).filter { refs.contains($0.ref) }.count), order.count))
         for (n, ref) in order.enumerated() {
             guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
-            if let sid = ref.subtaskID {
+            if let pid = ref.partID {
+                b.tasks[i].editPart(pid) { $0.order = Double(n) }
+            } else if let sid = ref.subtaskID {
                 if let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }) { b.tasks[i].subtasks[j].planOrder = Double(n) }
             } else {
                 b.tasks[i].planOrder = Double(n)
@@ -819,6 +837,51 @@ final class BoardStore: ObservableObject {
         }
         b.startTodaysPlan(only: newcomers)
         guard b != board else { return }
+        board = b
+        persist()
+    }
+
+    /// Spreads a task over several days ("周三 50%, 周四 20%"): replaces its parts with these
+    /// (a part kept on the same day keeps its tick), and takes the task as a whole off
+    /// the plan. An empty list ends the split.
+    func setPlanParts(_ taskID: String, subtask subtaskID: String? = nil, _ parts: [(day: Date, percent: Int)]) {
+        guard let i = board.tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        let j = subtaskID.flatMap { sid in board.tasks[i].subtasks.firstIndex { $0.id == sid } }
+        if subtaskID != nil, j == nil { return }
+        let cal = Calendar.current
+        var b = board
+        let old = j.map { b.tasks[i].subtasks[$0].planParts } ?? b.tasks[i].planParts
+        var used: Set<String> = []
+        var new: [PlanPart] = []
+        for p in parts.sorted(by: { $0.day < $1.day }) where p.percent > 0 {
+            let day = cal.startOfDay(for: p.day)
+            if let keep = old.first(where: { cal.isDate($0.day, inSameDayAs: day) && !used.contains($0.id) }) {
+                used.insert(keep.id)
+                new.append(PlanPart(id: keep.id, day: day, percent: p.percent, isDone: keep.isDone, order: keep.order))
+            } else {
+                let order = (board.plan(for: day).map(\.planOrder).max() ?? 0) + 1
+                new.append(PlanPart(day: day, percent: p.percent, order: order))
+            }
+        }
+        if let j {
+            b.tasks[i].subtasks[j].planParts = new
+            if !new.isEmpty { b.tasks[i].subtasks[j].planDay = nil }
+        } else {
+            b.tasks[i].planParts = new
+            if !new.isEmpty { b.tasks[i].planDay = nil }
+        }
+        b.startTodaysPlan(only: [taskID])
+        guard b != board else { return }
+        board = b
+        persist()
+    }
+
+    /// Ticks one day's part. Once every part is ticked and they add up to the whole task,
+    /// the task itself is finished too.
+    func togglePlanPart(_ taskID: String, _ partID: String) {
+        guard task(taskID)?.part(partID) != nil else { return }
+        var b = board
+        b.togglePlanPart(taskID: taskID, partID: partID)
         board = b
         persist()
     }
@@ -850,7 +913,9 @@ final class BoardStore: ObservableObject {
         var b = board
         for (n, ref) in refs.enumerated() {
             guard let i = b.tasks.firstIndex(where: { $0.id == ref.taskID }) else { continue }
-            if let sid = ref.subtaskID {
+            if let pid = ref.partID {
+                b.tasks[i].editPart(pid) { $0.order = Double(n) }
+            } else if let sid = ref.subtaskID {
                 if let j = b.tasks[i].subtasks.firstIndex(where: { $0.id == sid }) { b.tasks[i].subtasks[j].planOrder = Double(n) }
             } else {
                 b.tasks[i].planOrder = Double(n)

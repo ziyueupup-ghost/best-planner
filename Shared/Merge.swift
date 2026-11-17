@@ -26,6 +26,7 @@ extension PlannerTask {
         r.staleDays = pick(base.staleDays, mine.staleDays, theirs.staleDays)
         r.planDay = pick(base.planDay, mine.planDay, theirs.planDay)
         r.planOrder = pick(base.planOrder, mine.planOrder, theirs.planOrder)
+        r.planParts = mergeParts(base: base.planParts, mine: mine.planParts, theirs: theirs.planParts)
         r.dependencies = mergeList(base: base.dependencies, mine: mine.dependencies, theirs: theirs.dependencies) { b, m, t in
             TaskDependency(id: t.id, taskID: pick(b.taskID, m.taskID, t.taskID), kind: pick(b.kind, m.kind, t.kind))
         }
@@ -36,6 +37,7 @@ extension PlannerTask {
             s.planDay = pick(b.planDay, m.planDay, t.planDay)
             s.planOrder = pick(b.planOrder, m.planOrder, t.planOrder)
             s.links = mergeLinks(base: b.links, mine: m.links, theirs: t.links)
+            s.planParts = mergeParts(base: b.planParts, mine: m.planParts, theirs: t.planParts)
             return s
         }
         r.dates = mergeList(base: base.dates, mine: mine.dates, theirs: theirs.dates) { b, m, t in
@@ -189,5 +191,14 @@ func mergeLinks(base: [TaskLink], mine: [TaskLink], theirs: [TaskLink]) -> [Task
     func pick<T: Equatable>(_ b: T, _ m: T, _ t: T) -> T { m != b ? m : t }
     return mergeList(base: base, mine: mine, theirs: theirs) { b, m, t in
         TaskLink(id: t.id, title: pick(b.title, m.title, t.title), url: pick(b.url, m.url, t.url), device: pick(b.device, m.device, t.device))
+    }
+}
+
+/// Days of a task or subtask spread over several days, merged part by part.
+func mergeParts(base: [PlanPart], mine: [PlanPart], theirs: [PlanPart]) -> [PlanPart] {
+    func pick<T: Equatable>(_ b: T, _ m: T, _ t: T) -> T { m != b ? m : t }
+    return mergeList(base: base, mine: mine, theirs: theirs) { b, m, t in
+        PlanPart(id: t.id, day: pick(b.day, m.day, t.day), percent: pick(b.percent, m.percent, t.percent),
+                 isDone: pick(b.isDone, m.isDone, t.isDone), order: pick(b.order, m.order, t.order))
     }
 }

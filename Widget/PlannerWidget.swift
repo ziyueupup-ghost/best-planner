@@ -126,7 +126,8 @@ struct PlannerWidgetView: View {
             out.append(.item(i + 1, it))
             shown += 1
             guard it.subtask == nil, family != .systemSmall else { continue }
-            for s in it.task.subtasks where !s.isDone && out.count < budget {
+            // Not the ones put on a plan by themselves: they're on their own day.
+            for s in it.task.subtasks where !s.isDone && !s.isPlannedAlone && out.count < budget {
                 out.append(.subtask(it.task, s))
             }
         }
@@ -155,7 +156,14 @@ struct PlannerWidgetView: View {
                 .foregroundStyle(.white)
                 .frame(width: 14, height: 14)
                 .background(Circle().fill(Color(hex: "#2A78D6")))
-            if let sub = it.subtask {
+            if let part = it.part {
+                // A day's part of a task spread over several days.
+                Button(intent: ToggleSubtaskIntent(taskID: task.id, subtaskID: "part:" + part.id)) {
+                    Image(systemName: it.subtask == nil ? "circle.lefthalf.filled" : "square.lefthalf.filled")
+                        .font(.system(size: 12)).foregroundStyle(board.accentColor(of: task))
+                }
+                .buttonStyle(.plain)
+            } else if let sub = it.subtask {
                 Button(intent: ToggleSubtaskIntent(taskID: task.id, subtaskID: sub.id)) {
                     Image(systemName: "square").font(.system(size: 11)).foregroundStyle(board.accentColor(of: task))
                 }
@@ -167,6 +175,9 @@ struct PlannerWidgetView: View {
                 .buttonStyle(.plain)
             }
             Text(it.title).font(.caption).lineLimit(1)
+            if let part = it.part {
+                Text("\(part.percent)%").font(.caption2.weight(.semibold)).foregroundStyle(.orange)
+            }
             if family != .systemSmall {
                 if it.subtask != nil {
                     Text("· \(task.title)").font(.caption2).foregroundStyle(.secondary).lineLimit(1)

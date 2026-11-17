@@ -193,7 +193,7 @@ function normalize(b) {
   for (const k of ["columns", "tags", "tasks", "trash", "priorities", "subtaskPacks", "flags", "contacts", "expandedGroups"]) b[k] ||= [];
   b.dayNotes ||= {};
   for (const task of [...b.tasks, ...b.trash]) {
-    for (const k of ["tagIDs", "dates", "subtasks", "history", "links", "flagIDs", "contactIDs", "autoMoves", "focusSessions", "dependencies"]) task[k] ||= [];
+    for (const k of ["tagIDs", "dates", "subtasks", "history", "links", "flagIDs", "contactIDs", "autoMoves", "focusSessions", "dependencies", "planParts"]) task[k] ||= [];
   }
   return b;
 }
@@ -371,7 +371,9 @@ const ui = {
   openSubtasks: new Set(),
   settingsTab: null,
   view: load("bp.view") || "board",          // "board" or "agenda" (日程)
-  openDays: new Set([dayKey(new Date())]),   // days open in the plan list (today at first)
+  openDays: new Set([dayKey(new Date())]),
+  showDoneSubs: new Set(),   // planned tasks whose finished subtasks are shown
+  tickedHere: new Set(),     // subtasks ticked on this page (kept in view)   // days open in the plan list (today at first)
   pickOpen: new Set(),                       // tasks whose subtasks are listed in the agenda
   newPlanTask: "",
 };
@@ -1109,7 +1111,7 @@ const clickEd = (name) => $(`.editor [data-ed="${name}"]`)?.click();
 
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-ed]");
-  if (!el) { if (!e.target.closest(".popover,[data-act=contact],[data-act=menu],[data-act=pmove],[data-act=file],[data-ed=showcontact]")) $(".popover")?.remove(); return; }
+  if (!el) { if (!e.target.closest(".popover,[data-act=contact],[data-act=menu],[data-act=pmove],[data-act=ppct],[data-act=file],[data-ed=showcontact]")) $(".popover")?.remove(); return; }
   const task = editingTask();
   if (el.dataset.ed === "close") { closeEditor(); return; }
   if (!task) return;
@@ -1537,20 +1539,34 @@ function planDayName(d) {
   if (n === 0) return t("今天");
   return new Date(d).toLocaleDateString(undefined, Math.abs(n) < 7 ? { weekday: "short" } : { month: "numeric", day: "numeric", weekday: "short" });
 }
-const refOf = (task, sub) => `${task.id}|${sub ? sub.id : ""}`;
+// A plan item is a task, a subtask, or one day's part of a task spread over several days
+// (task.planParts: {id, day, percent, isDone, order}). Its ref is "task|subtask|part".
+const refOf = (task, sub, part) => `${task.id}|${sub ? sub.id : ""}${part ? "|" + part.id : ""}`;
 function itemOf(ref) {
-  const [tid, sid] = String(ref).split("|");
+  const [tid, sid, pid] = String(ref).split("|");
   const task = taskByID(tid);
   if (!task) return null;
   const sub = sid ? task.subtasks.find((x) => x.id === sid) : null;
-  return sid && !sub ? null : { task, sub, ref: refOf(task, sub) };
+  const part = pid ? ((sub ? sub.planParts : task.planParts) || []).find((x) => x.id === pid) : null;
+  if ((sid && !sub) || (pid && !part)) return null;
+  return { task, sub, part, ref: refOf(task, sub, part) };
 }
-const itemDay = (it) => (it.sub ? it.sub.planDay : it.task.planDay);
-const itemOrder = (it) => (it.sub ? it.sub.planOrder : it.task.planOrder) || 0;
-const itemDone = (it) => (it.sub ? !!it.sub.isDone : isDone(it.task));
+const itemDay = (it) => (it.part ? it.part.day : it.sub ? it.sub.planDay : it.task.planDay);
+const itemOrder = (it) => (it.part ? it.part.order : it.sub ? it.sub.planOrder : it.task.planOrder) || 0;
+const itemDone = (it) => (it.part ? !!it.part.isDone : it.sub ? !!it.sub.isDone : isDone(it.task));
+function setItemDay(it, day) { if (it.part) it.part.day = day; else (it.sub || it.task).planDay = day; }
+function setItemOrder(it, n) { if (it.part) it.part.order = n; else (it.sub || it.task).planOrder = n; }
+// For a task or a subtask (both can be spread over several days).
+const partsDone = (x) => Math.min(100, (x.planParts || []).filter((p) => p.isDone).reduce((a, p) => a + p.percent, 0));
+const partsTotal = (x) => (x.planParts || []).reduce((a, p) => a + p.percent, 0);
+const partsFinished = (x) => (x.planParts || []).length > 0 && x.planParts.every((p) => p.isDone) && partsTotal(x) >= 100;
+/** A subtask on a plan by itself (as a whole, or spread over several days). */
+const plannedAlone = (s) => !!s.planDay || (s.planParts || []).length > 0;
 function plannedItems() {
-  return B().tasks.flatMap((task) => [...(task.planDay ? [{ task, sub: null }] : []),
-    ...task.subtasks.filter((x) => x.planDay).map((sub) => ({ task, sub }))]).map((it) => ({ ...it, ref: refOf(it.task, it.sub) }));
+  return B().tasks.flatMap((task) => [...(task.planDay ? [{ task, sub: null, part: null }] : []),
+    ...(task.planParts || []).map((part) => ({ task, sub: null, part })),
+    ...task.subtasks.filter((x) => x.planDay).map((sub) => ({ task, sub, part: null })),
+    ...task.subtasks.flatMap((sub) => (sub.planParts || []).map((part) => ({ task, sub, part })))]).map((it) => ({ ...it, ref: refOf(it.task, it.sub, it.part) }));
 }
 const planFor = (d) => plannedItems().filter((it) => sameDay(itemDay(it), d)).sort((a, b) => itemOrder(a) - itemOrder(b));
 
@@ -1560,10 +1576,16 @@ function addToPlan(refs, d) {
   const added = new Set();
   for (const ref of refs) {
     const it = itemOf(ref);
-    if (!it || sameDay(itemDay(it), d)) continue;
-    const target = it.sub || it.task;
-    target.planDay = day;
-    target.planOrder = next++;
+    if (!it) continue;
+    // Spread over days: what's left of it goes on this day (nothing, when all is planned).
+    const owner = it.sub || it.task;
+    if (!it.part && (owner.planParts || []).length) {
+      if (addRemainingPart(owner, day, next)) { next++; added.add(it.task.id); it.task.updatedAt = nowISO(); }
+      continue;
+    }
+    if (sameDay(itemDay(it), d)) continue;
+    setItemDay(it, day);
+    setItemOrder(it, next++);
     it.task.updatedAt = nowISO();
     added.add(it.task.id);
   }
@@ -1574,6 +1596,18 @@ function addToPlan(refs, d) {
 /** A task still in the first status (待办) that is — itself or a subtask — on today's plan
  *  moves to the next status (进行中), as on the Mac. Tasks still waiting for another stay.
  *  `ids` limits it to these tasks (the ones just put on the plan). */
+/** The rest of a split task or subtask (100% minus what's planned) as a part on `day`,
+ *  or added to that day's part. Returns the part, or null when nothing is left. */
+function addRemainingPart(owner, day, order) {
+  const left = 100 - partsTotal(owner);
+  if (left <= 0) return null;
+  const same = owner.planParts.find((p) => sameDay(p.day, day));
+  if (same) { same.percent += left; same.isDone = false; return same; }
+  const part = { id: uuid(), day, percent: left, isDone: false, order };
+  owner.planParts.push(part);
+  return part;
+}
+
 function startTodaysPlan(ids = null) {
   const cols = B().columns, first = cols[0], next = cols[1];
   if (!first || !next || next.isDone) return 0;
@@ -1581,7 +1615,8 @@ function startTodaysPlan(ids = null) {
   let moved = 0;
   for (const task of B().tasks) {
     if (task.columnID !== first.id || (ids && !ids.has(task.id))) continue;
-    const planned = sameDay(task.planDay, today) || task.subtasks.some((s) => sameDay(s.planDay, today));
+    const planned = sameDay(task.planDay, today) || (task.planParts || []).some((p) => sameDay(p.day, today))
+      || task.subtasks.some((s) => sameDay(s.planDay, today) || (s.planParts || []).some((p) => sameDay(p.day, today)));
     if (!planned || unmetDeps(task, next.id).length) continue;
     moveTask(task, next.id, true);
     task.history[task.history.length - 1].text = t("📅 排进今天的计划，自动开始");
@@ -1591,7 +1626,7 @@ function startTodaysPlan(ids = null) {
 }
 
 function setPlanOrder(items) {
-  items.forEach((it, i) => { (it.sub || it.task).planOrder = i; });
+  items.forEach((it, i) => setItemOrder(it, i));
   changed();
 }
 
@@ -1639,25 +1674,38 @@ function renderPlanDay(d) {
   </div>`;
 }
 
+/** A planned task's subtasks: finished ones are left out unless asked for, or ticked
+ *  just now on this page (so the tick doesn't make the line vanish). */
+function planSubs(task) {
+  // Subtasks put on a plan by themselves belong to that day, not under the task.
+  const own = task.subtasks.filter((s) => !plannedAlone(s));
+  const elsewhere = task.subtasks.filter((s) => plannedAlone(s) && !s.isDone);
+  const shown = own.filter((s) => !s.isDone || ui.showDoneSubs.has(task.id) || ui.tickedHere.has(s.id));
+  return { shown, elsewhere, hidden: own.filter((s) => s.isDone).length - shown.filter((s) => s.isDone).length };
+}
+
 function renderPlanRow(it, i, count) {
   const { task, sub } = it, done = itemDone(it);
   const g = B().tags.find((x) => task.tagIDs.includes(x.id));
-  const box = sub ? (done ? "☑" : "☐") : (done ? "✓" : "");
+  const { part } = it;
+  const box = sub ? (done ? "☑" : part ? "◧" : "☐") : (done ? "✓" : part ? "◐" : "");
   return `<div class="plan-row ${done ? "done" : ""}" data-ref="${esc(it.ref)}" draggable="true" data-drag="${esc(it.ref)}" data-from-plan="1" style="--c:${esc(g?.colorHex || "transparent")}">
     <span class="plan-num">${i + 1}</span>
-    <button class="plan-tick ${sub ? "square" : "round"} ${done ? "on" : ""}" data-act="ptick" title="${done ? t("标为没完成") : t("完成")}">${box}</button>
+    <button class="plan-tick ${sub ? "square" : "round"} ${done ? "on" : ""}" data-act="ptick" title="${part ? (done ? t("这天的部分标为没完成") : t("这天的部分做完了")) : done ? t("标为没完成") : t("完成")}">${box}</button>
     <div class="plan-body">
       <button class="plan-title" data-act="pedit">${esc((sub ? sub.title : task.title) || t("（无标题）"))}</button>
       <div class="plan-meta">${g ? tagChipHTML(g, { small: true }) : ""}
+        ${part ? `<span class="part-chip">${esc(t("这天做 {}%", part.percent))}</span><span class="muted">${esc(t("已做 {}%", partsDone(sub || task)))}</span>` : ""}
         ${sub ? `<span class="muted">↳ ${esc(t("「{}」的子任务", task.title))}</span>` : `<span class="muted">${esc(column(task.columnID)?.name || "")}</span>`}
       </div>
       ${linkChips(sub ? sub.links : task.links)}
-      ${!sub && task.subtasks.length ? `<div class="plan-subs">${task.subtasks.map((s) => `<div class="plan-sub-line">
+      ${!sub && task.subtasks.length ? `<div class="plan-subs">${planSubs(task).shown.map((s) => `<div class="plan-sub-line">
         <button class="plan-sub ${s.isDone ? "done" : ""}" data-act="psub" data-id="${esc(s.id)}" draggable="true" data-drag="${esc(refOf(task, s))}">
           <span class="sq">${s.isDone ? "☑" : "☐"}</span>${esc(s.title)}${s.planDay && !s.isDone && daysFromToday(s.planDay) >= 0 && !sameDay(s.planDay, itemDay(it)) ? `<span class="plan-other">${esc(planDayName(s.planDay))}</span>` : ""}
-        </button>${linkChips(s.links)}<button class="mini plink" data-act="plink" data-ref="${esc(refOf(task, s))}" title="${t("添加链接")}">${icon("link")}</button></div>`).join("")}</div>` : ""}
+        </button>${linkChips(s.links)}<button class="mini plink" data-act="plink" data-ref="${esc(refOf(task, s))}" title="${t("添加链接")}">${icon("link")}</button><button class="mini pct" data-act="ppct" data-ref="${esc(refOf(task, s))}" title="${t("这个子任务这天做多少（可以只做一部分，或分几天做）")}">%</button><button class="mini plink" data-act="pmove" data-ref="${esc(refOf(task, s))}" data-menu="psub-${esc(refOf(task, s))}" title="${t("把这个子任务单独排到某一天，或分几天做")}">${icon("calendar")}</button></div>`).join("")}${planSubs(task).elsewhere.length ? `<div class="small plan-elsewhere">${esc(t("另有 {} 个子任务单独排在：", planSubs(task).elsewhere.length) + [...new Set(planSubs(task).elsewhere.flatMap((x) => [x.planDay, ...(x.planParts || []).map((p) => p.day)].filter(Boolean)).sort((a, b) => new Date(a) - new Date(b)).map((d) => planDayName(d)))].join("、"))}</div>` : ""}${planSubs(task).hidden || ui.showDoneSubs.has(task.id) ? `<button class="link small muted" data-act="pdonesubs" data-id="${esc(task.id)}">${ui.showDoneSubs.has(task.id) ? t("隐藏已完成的子任务") : t("还有 {} 个已完成的子任务", planSubs(task).hidden)}</button>` : ""}</div>` : ""}
     </div>
     <div class="plan-actions">
+      <button class="mini pct ${part ? "on" : ""}" data-act="ppct" title="${t("这天做多少：点一下改成 50% 之类，或分几天做；不到 100% 的部分会回到右边的日程")}">${part ? part.percent : 100}%</button>
       <button class="mini" data-act="plink" title="${t("添加链接")}">${icon("link")}</button>
       <button class="mini" data-act="pup" ${i === 0 ? "disabled" : ""} title="${t("往前")}">↑</button>
       <button class="mini" data-act="pdown" ${i === count - 1 ? "disabled" : ""} title="${t("往后")}">↓</button>
@@ -1671,18 +1719,38 @@ function renderPlanRow(it, i, count) {
 function renderPicks() {
   const today = startOfDay(new Date()), q = ui.search.trim().toLowerCase();
   const match = (task, sub) => !q || task.title.toLowerCase().includes(q) || (sub ? sub.title : "").toLowerCase().includes(q);
-  const openSubs = (task) => task.subtasks.filter((s) => !s.isDone && !sameDay(s.planDay, today));
+  // On the plan of today or a later day: not offered again (nor its subtasks).
+  const upcoming = (d) => !!d && startOfDay(new Date(d)) >= today;
+  // All of it on a plan (today or later): as a whole, or in parts adding up to 100%.
+  // Partly planned ones stay here until the rest is planned too.
+  const fullyPlanned = (x) => {
+    if (upcoming(x.planDay)) return true;
+    const parts = x.planParts || [];
+    if (!parts.length || partsTotal(x) < 100) return false;
+    return parts.every((p) => p.isDone) || parts.some((p) => !p.isDone && upcoming(p.day));
+  };
+  const left = (x) => ((x.planParts || []).length && partsTotal(x) < 100 ? t("还剩 {}% 没排", 100 - partsTotal(x)) : "");
   const dated = [], undated = [];
   for (const task of B().tasks) {
     if (isDone(task)) continue;
-    if ((!sameDay(task.planDay, today) || openSubs(task).length) && match(task)) {
+    // Subtasks planned only in part stay here on their own, whatever their task does.
+    for (const sub of task.subtasks) {
+      if (sub.isDone || !(sub.planParts || []).length || fullyPlanned(sub) || !match(task, sub)) continue;
+      const detail = [t("「{}」的子任务", task.title), left(sub)].filter(Boolean).join(" · ");
+      if (sub.date && (subOverdue(sub) || new Date(sub.date) >= today)) dated.push({ task, sub, date: new Date(sub.date), detail });
+      else undated.push({ task, sub, detail });
+    }
+    if (fullyPlanned(task)) continue;
+    const open = task.subtasks.filter((s) => !s.isDone);
+    if (open.length && open.every(fullyPlanned)) continue;
+    if (match(task)) {
       const ds = [...task.dates].sort((a, b) => cmpDates(a.date, b.date));
       const d = ds.find((x) => x.kind === "deadline" && isOverdue(x, task)) || ds.find((x) => new Date(x.date) >= today);
-      if (d) dated.push({ task, sub: null, date: new Date(d.date), detail: `${kindTitle(d.kind)} ${dateLabel(d.date, showsTime(d))}` });
-      else undated.push({ task, sub: null, detail: column(task.columnID)?.name || "" });
+      if (d) dated.push({ task, sub: null, date: new Date(d.date), detail: [`${kindTitle(d.kind)} ${dateLabel(d.date, showsTime(d))}`, left(task)].filter(Boolean).join(" · ") });
+      else undated.push({ task, sub: null, detail: [column(task.columnID)?.name || "", left(task)].filter(Boolean).join(" · ") });
     }
     for (const sub of task.subtasks) {
-      if (sub.isDone || !sub.date || sameDay(sub.planDay, today) || !match(task, sub)) continue;
+      if (sub.isDone || !sub.date || (sub.planParts || []).length || fullyPlanned(sub) || !match(task, sub)) continue;
       if (!subOverdue(sub) && new Date(sub.date) < today) continue;
       dated.push({ task, sub, date: new Date(sub.date), detail: t("「{}」的子任务 · {}", task.title, dateLabel(sub.date, sub.hasTime)) });
     }
@@ -1699,7 +1767,7 @@ function renderPicks() {
   const later = dated.filter((x) => x.date >= addDays(today, 8));
   if (later.length) groups.push({ title: t("以后"), items: later });
   if (undated.length) groups.push({ title: t("没有日期"), items: undated });
-  if (!groups.length) return `<p class="muted">${q ? t("没有找到。") : t("没完成的任务都已经在今天的计划里了。")}</p>`;
+  if (!groups.length) return `<p class="muted">${q ? t("没有找到。") : t("没完成的任务都已经排进计划了。")}</p>`;
   return groups.map((g) => `<div class="pick-group">
       <div class="pick-head ${g.red ? "red" : ""}">${esc(g.title)} · ${g.items.length}</div>
       ${g.items.map(renderPickRow).join("")}
@@ -1711,7 +1779,8 @@ function renderPickRow(x) {
   const g = B().tags.find((y) => task.tagIDs.includes(y.id));
   const planned = sub ? sub.planDay : task.planDay;
   const elsewhere = planned && daysFromToday(planned) >= 0 && !sameDay(planned, today) ? t("已排在{}", planDayName(planned)) : "";
-  const subs = sub ? [] : task.subtasks.filter((s) => !s.isDone && !sameDay(s.planDay, today));
+  const later = (d) => d && startOfDay(new Date(d)) >= today;
+  const subs = sub ? [] : task.subtasks.filter((s) => !s.isDone && !later(s.planDay) && !(s.planParts || []).length);
   const open = ui.pickOpen.has(task.id);
   const inToday = !sub && sameDay(task.planDay, today);
   return `<div class="pick-row" draggable="true" data-drag="${esc(ref)}">
@@ -1733,10 +1802,77 @@ function renderPickRow(x) {
 }
 
 /** Menu of days to put something on (today and the next six days), then any other date. */
-function dayMenu(run, anchor) {
+function dayMenu(run, anchor, target = null) {
   return [...Array.from({ length: 7 }, (_, i) => addDays(new Date(), i)).map((d) => ({
     label: `${planDayName(d)} ${d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}`, run: () => run(d) })),
-    "-", { label: t("选别的日期…"), run: () => datePopover(anchor, run) }];
+    "-", { label: t("选别的日期…"), run: () => datePopover(anchor, run) },
+    ...(target ? [{ label: (target.sub || target.task).planParts?.length ? t("改每天做多少…") : t("分几天做…"), run: () => splitPopover(anchor, target.task, target.sub) }] : [])];
+}
+
+/** 分几天做: spread a task over several days, with how much of it to do on each (as on the Mac). */
+function splitPopover(anchor, task, sub = null, startDay = null) {
+  const owner = sub || task;
+  const today = startOfDay(new Date());
+  const ymd = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+  let rows = (owner.planParts || []).slice().sort((a, b) => new Date(a.day) - new Date(b.day)).map((p) => ({ day: ymd(p.day), percent: p.percent }));
+  // Not split yet: the day it's on (or was opened from), all of it — lower it, or add days.
+  if (!rows.length) rows = [{ day: ymd(owner.planDay || startDay || today), percent: 100 }];
+  const pop = document.createElement("div");
+  pop.className = "popover split-pop";
+  const draw = () => {
+    const total = rows.reduce((a, r) => a + (Number(r.percent) || 0), 0);
+    pop.innerHTML = `<b>${esc(t("分几天做「{}」", owner.title))}</b>
+      <p class="muted small">${esc(sub ? t("每天做这个子任务的多少。每一天都会单独出现在那天的计划里，可以单独打勾；全部打勾、加起来到 100% 时，子任务就打勾完成了。")
+        : t("每天做这个任务的多少。每一天都会单独出现在那天的计划里，可以单独打勾；全部打勾、加起来到 100% 时，任务就完成了。")) + " " + esc(t("不到 100% 时，剩下的会留在右边的日程里，再拖到别的日子就行。"))}</p>
+      ${rows.map((r, i) => `<div class="split-row" data-i="${i}">
+        <input type="date" value="${r.day}" data-f="day"><span class="muted">${esc(planDayName(new Date(r.day + "T00:00")))}</span>
+        <input type="number" min="1" max="100" step="5" value="${r.percent}" data-f="percent"><span>%</span>
+        <button class="mini danger" data-split="rm" title="${t("去掉这一天")}">×</button></div>`).join("")}
+      <div class="split-foot"><button class="mini" data-split="add">${t("＋ 再加一天")}</button>
+        <b class="${total === 100 ? "ok" : total > 100 ? "bad" : "muted"}">${t("合计 {}%", total)}</b></div>
+      ${total !== 100 ? `<p class="small ${total > 100 ? "bad" : "muted"}">${total > 100 ? t("加起来超过 100% 了。") : t("还剩 {}% 没排：会留在右边的日程里。", 100 - total)}</p>` : ""}
+      <div class="split-foot">${owner.planParts?.length ? `<button data-split="clear">${t("不分了")}</button>` : "<span></span>"}
+        <span><button data-split="cancel">${t("取消")}</button> <button class="primary" data-split="save" ${rows.length ? "" : "disabled"}>${t("保存")}</button></span></div>`;
+  };
+  pop.addEventListener("change", (e) => {
+    const row = e.target.closest(".split-row");
+    if (!row) return;
+    rows[Number(row.dataset.i)][e.target.dataset.f] = e.target.dataset.f === "percent" ? Number(e.target.value) || 0 : e.target.value;
+    draw();
+  });
+  pop.addEventListener("click", (e) => {
+    e.stopPropagation();   // its content is redrawn: the page mustn't take this as a click outside
+    const b = e.target.closest("[data-split]");
+    if (!b) return;
+    const act = b.dataset.split;
+    if (act === "rm") { rows.splice(Number(b.closest(".split-row").dataset.i), 1); draw(); }
+    else if (act === "add") {
+      const last = rows.length ? new Date(rows.map((r) => r.day).sort().at(-1) + "T00:00") : addDays(today, -1);
+      const total = rows.reduce((a, r) => a + (Number(r.percent) || 0), 0);
+      rows.push({ day: ymd(addDays(last, 1)), percent: Math.max(10, 100 - total) }); draw();
+    } else if (act === "cancel") pop.remove();
+    else if (act === "clear") { owner.planParts = []; task.updatedAt = nowISO(); pop.remove(); changed(); }
+    else if (act === "save") {
+      const old = owner.planParts || [];
+      const used = new Set();
+      owner.planParts = rows.filter((r) => r.day && r.percent > 0).sort((a, b) => (a.day < b.day ? -1 : 1)).map((r) => {
+        const day = iso(new Date(r.day + "T00:00"));
+        const keep = old.find((p) => sameDay(p.day, day) && !used.has(p.id));
+        if (keep) used.add(keep.id);
+        ui.openDays.add(dayKey(day));
+        return { id: keep?.id || uuid(), day, percent: Math.min(100, Math.max(1, Math.round(r.percent))), isDone: keep?.isDone || false,
+          order: keep ? keep.order : Math.max(0, ...planFor(day).map(itemOrder)) + 1 };
+      });
+      if (owner.planParts.length) delete owner.planDay;
+      task.updatedAt = nowISO();
+      startTodaysPlan(new Set([task.id]));
+      pop.remove();
+      changed();
+    }
+  });
+  draw();
+  document.body.appendChild(pop);
+  placePopover(pop, anchor);
 }
 
 /** A small popover with a date field; picking a date runs `run` with it. */
@@ -1765,9 +1901,15 @@ function placeInPlan(refs, d, index = Infinity) {
   const before = planFor(d);
   const shift = before.slice(0, index).filter((x) => refs.includes(x.ref)).length;
   const order = before.filter((x) => !refs.includes(x.ref));
-  const moved = refs.map(itemOf).filter(Boolean);
+  // A split task or subtask dropped here as a whole: what's left of it becomes a part.
+  const moved = refs.map(itemOf).filter(Boolean).flatMap((it) => {
+    const owner = it.sub || it.task;
+    if (it.part || !(owner.planParts || []).length) return [it];
+    const part = addRemainingPart(owner, day, 0);
+    return part ? [{ ...it, part, ref: refOf(it.task, it.sub, part) }] : [];
+  });
   const newcomers = new Set(moved.filter((it) => !before.some((x) => x.ref === it.ref)).map((it) => it.task.id));
-  for (const it of moved) { (it.sub || it.task).planDay = day; it.task.updatedAt = nowISO(); }
+  for (const it of moved) { setItemDay(it, day); it.task.updatedAt = nowISO(); }
   if (sameDay(d, new Date())) startTodaysPlan(newcomers);
   order.splice(Math.max(0, Math.min(index - shift, order.length)), 0, ...moved);
   setPlanOrder(order);
@@ -1786,20 +1928,37 @@ function planClick(el, e) {
     }
     case "pedit": if (it) { ui.editing = it.task.id; renderEditor(); } break;
     case "ptick": if (it) {
-      if (it.sub) { it.sub.isDone = !it.sub.isDone; addHistory(it.task, "subtask", t(it.sub.isDone ? "完成子任务「{}」" : "重新打开子任务「{}」", it.sub.title)); it.task.updatedAt = nowISO(); }
+      if (it.part) {
+        it.part.isDone = !it.part.isDone;
+        addHistory(it.task, "subtask", t(it.part.isDone ? "完成 {} 的部分（{}%）" : "重新打开 {} 的部分（{}%）", planDayName(it.part.day), it.part.percent));
+        it.task.updatedAt = nowISO();
+        // Every part ticked and they add up to the whole: that subtask, or the task, is done too.
+        if (it.sub) { if (partsFinished(it.sub) && !it.sub.isDone) { it.sub.isDone = true; addHistory(it.task, "subtask", t("完成子任务「{}」", it.sub.title)); } }
+        else if (partsFinished(it.task) && !isDone(it.task)) toggleDone(it.task);
+      } else if (it.sub) { it.sub.isDone = !it.sub.isDone; addHistory(it.task, "subtask", t(it.sub.isDone ? "完成子任务「{}」" : "重新打开子任务「{}」", it.sub.title)); it.task.updatedAt = nowISO(); }
       else toggleDone(it.task);
       changed();
     } break;
+    case "pdonesubs": { const id = el.dataset.id; ui.showDoneSubs.has(id) ? ui.showDoneSubs.delete(id) : ui.showDoneSubs.add(id); renderBoard(); break; }
     case "psub": if (it) {
       const s = it.task.subtasks.find((x) => x.id === el.dataset.id);
+      if (s) ui.tickedHere.add(s.id);
       if (s) { s.isDone = !s.isDone; addHistory(it.task, "subtask", t(s.isDone ? "完成子任务「{}」" : "重新打开子任务「{}」", s.title)); it.task.updatedAt = nowISO(); changed(); }
     } break;
     case "pup": case "pdown": if (it) {
       const plan = planFor(itemDay(it)), i = plan.findIndex((x) => x.ref === it.ref), j = i + (el.dataset.act === "pup" ? -1 : 1);
       if (j >= 0 && j < plan.length) { [plan[i], plan[j]] = [plan[j], plan[i]]; setPlanOrder(plan); }
     } break;
-    case "prm": if (it) { (it.sub || it.task).planDay = null; delete (it.sub || it.task).planDay; it.task.updatedAt = nowISO(); changed(); } break;
-    case "pmove": if (it) showMenu(el, dayMenu((d) => { ui.openDays.add(dayKey(d)); addToPlan([it.ref], d); }, el)); break;
+    case "prm": if (it) {
+      if (it.part) { const owner = it.sub || it.task; owner.planParts = owner.planParts.filter((p) => p !== it.part); }
+      else { (it.sub || it.task).planDay = null; delete (it.sub || it.task).planDay; }
+      it.task.updatedAt = nowISO(); changed();
+    } break;
+    case "pmove": if (it) showMenu(el, dayMenu((d) => { ui.openDays.add(dayKey(d)); addToPlan([it.ref], d); }, el, { task: it.task, sub: it.sub })); break;
+    case "ppct": if (it) {
+      const rowIt = itemOf(row?.closest(".plan-row")?.dataset.ref || row?.dataset.ref);
+      splitPopover(el, it.task, it.sub, rowIt ? itemDay(rowIt) : null);
+    } break;
     case "plink": if (it) {
       const link = askLink();
       if (link) { const target = it.sub || it.task; target.links = [...(target.links || []), link]; it.task.updatedAt = nowISO(); changed(); }

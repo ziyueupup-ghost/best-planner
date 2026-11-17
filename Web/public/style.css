@@ -386,3 +386,15 @@ input[type=color] { width: 38px; height: 34px; padding: 2px; }
 .sub-row { flex-wrap: wrap; }
 .sub-links { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 10px; padding-left: 30px; font-size: var(--caption); }
 .sub-link { display: inline-flex; align-items: center; gap: 2px; }
+
+/* 分几天做 */
+.part-chip { color: #c86a00; background: color-mix(in srgb, #f08c00 14%, transparent); border-radius: 999px; padding: 0 7px; font-weight: 600; }
+.split-pop { width: min(420px, calc(100vw - 32px)); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.split-row { display: flex; align-items: center; gap: 6px; }
+.split-row input[type=number] { width: 60px; text-align: right; }
+.split-row .muted { flex: 1; }
+.split-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.split-pop .ok { color: #2f9e44; } .split-pop .bad { color: #e03131; }
+.plan-elsewhere { color: #c86a00; }
+.mini.pct { font-weight: 600; font-variant-numeric: tabular-nums; border-radius: 999px; padding: 1px 8px; }
+.mini.pct.on { color: #c86a00; background: color-mix(in srgb, #f08c00 14%, transparent); }

@@ -59,7 +59,7 @@ function mergeList(base = [], mine = [], theirs = [], mergeItem = mergeFields) {
 function mergeTask(b, m, t) {
   const r = mergeFields(b, m, t);
   for (const k of ["tagIDs", "flagIDs", "contactIDs"]) r[k] = mergeIDs(b[k], m[k], t[k]);
-  for (const k of ["subtasks", "dates", "autoMoves", "links", "dependencies"]) r[k] = mergeList(b[k], m[k], t[k]);
+  for (const k of ["subtasks", "dates", "autoMoves", "links", "dependencies", "planParts"]) r[k] = mergeList(b[k], m[k], t[k]);
   // Entries from both sides, minus the ones either side deleted (in base, gone from it).
   const ids = (x) => new Set((x || []).map((h) => h.id));
   const baseHistory = ids(b.history), mineHistory = ids(m.history), theirHistory = ids(t.history);

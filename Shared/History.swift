@@ -171,8 +171,35 @@ extension Board {
 
     /// Ticks or unticks a subtask, recording it in the task's history.
     mutating func toggleSubtask(taskID: String, subtaskID: String, source: String? = nil) {
+        // The widget ticks a day's part of a split task through this too ("part:<id>").
+        if subtaskID.hasPrefix("part:") {
+            togglePlanPart(taskID: taskID, partID: String(subtaskID.dropFirst(5)), source: source)
+            return
+        }
         edit(taskID, source: source) { t in
             if let j = t.subtasks.firstIndex(where: { $0.id == subtaskID }) { t.subtasks[j].isDone.toggle() }
+        }
+    }
+
+    /// Ticks one day's part of a task (or of one of its subtasks) spread over several days.
+    /// Once every part is ticked and they add up to the whole, that task or subtask is
+    /// finished too.
+    mutating func togglePlanPart(taskID: String, partID: String, source: String? = nil) {
+        var subtaskDone: String?
+        edit(taskID, source: source) { t in
+            if let k = t.planParts.firstIndex(where: { $0.id == partID }) {
+                t.planParts[k].isDone.toggle()
+            } else if let j = t.subtasks.firstIndex(where: { $0.planParts.contains { $0.id == partID } }),
+                      let k = t.subtasks[j].planParts.firstIndex(where: { $0.id == partID }) {
+                t.subtasks[j].planParts[k].isDone.toggle()
+                if t.subtasks[j].planParts.finished, !t.subtasks[j].isDone {
+                    t.subtasks[j].isDone = true
+                    subtaskDone = t.subtasks[j].id
+                }
+            }
+        }
+        if subtaskDone == nil, let t = tasks.first(where: { $0.id == taskID }), t.planParts.finished, !isDone(t) {
+            toggleTaskDone(taskID, source: source)
         }
     }
 

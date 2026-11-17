@@ -30,6 +30,8 @@ struct TodayView: View {
     @State private var pickingDate = false
     /// A row of the plan is being dragged (dropping it on the right takes it off the plan).
     @State private var draggingFromPlan = false
+    /// The task (or subtask) being spread over several days (分几天做).
+    @State private var splitting: SplitTarget?
     @State private var overPicks = false
     /// Days whose list is open on the left (only today at first; the rest start folded).
     @State private var openDays: Set<Date> = [Calendar.current.startOfDay(for: Date())]
@@ -71,6 +73,9 @@ struct TodayView: View {
                     } isTargeted: { overPicks = $0 }
                     .transition(.move(edge: .trailing))
             }
+        }
+        .sheet(item: $splitting) { target in
+            SplitPlanView(task: target.task, subtaskID: target.subtaskID, startDay: target.day ?? today) { day in openDays.insert(day) }
         }
         // Left open past midnight: open the new today (and redraw with the new date).
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
@@ -160,7 +165,9 @@ struct TodayView: View {
                                             openDays.insert(cal.startOfDay(for: day))
                                             if !planDays.contains(cal.startOfDay(for: day)) { extraDay = cal.startOfDay(for: day) }
                                         },
-                                        onDragStart: { draggingFromPlan = true })
+                                        onDragStart: { draggingFromPlan = true },
+                                        split: { splitting = SplitTarget(task: item.task, subtaskID: item.subtask?.id, day: d) },
+                                        splitSubtask: { sid in splitting = SplitTarget(task: item.task, subtaskID: sid, day: d) })
                                     .listRowSeparator(.hidden)
                                     .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
                             }
@@ -286,8 +293,8 @@ struct TodayView: View {
     }
 
     /// The agenda (日程): open tasks — and dated subtasks — by date: overdue, today, each of
-    /// the next days, later, then those without a date. What's already on today's plan is
-    /// left out (a planned task still shows while it has subtasks left to pick).
+    /// the next days, later, then those without a date. What's already on a plan (today or
+    /// later) is left out, with its subtasks.
     private var picks: [Pick] {
         let q = search.trimmingCharacters(in: .whitespaces)
         func matches(_ t: PlannerTask, _ sub: Subtask? = nil) -> Bool {
@@ -298,16 +305,28 @@ struct TodayView: View {
         var dated: [(item: PlanItem, date: Date, detail: String)] = []
         var undated: [(PlanItem, String)] = []
         for t in board.tasks where !board.isDone(t) {
-            if !t.isPlanned(on: today) || !openSubtasks(t).isEmpty, matches(t) {
+            // Subtasks planned only in part stay here on their own (whatever their task does)
+            // until the rest of them is planned too.
+            for sub in t.subtasks where !sub.isDone && !sub.planParts.isEmpty && !isUpcomingAlone(sub) && matches(t, sub) {
+                let detail = [L("「\(t.title)」的子任务"), leftToPlan(sub.planParts)].compactMap { $0 }.joined(separator: " · ")
+                if let date = sub.date, sub.isOverdue || date >= today { dated.append((PlanItem(task: t, subtask: sub), date, detail)) }
+                else { undated.append((PlanItem(task: t, subtask: sub), detail)) }
+            }
+            // Already on a plan (today or a later day): not offered again, nor its subtasks.
+            if fullyPlanned(t.planDay, t.planParts) { continue }
+            // Every open subtask already planned one by one: nothing left to add either.
+            let open = t.subtasks.filter { !$0.isDone }
+            if !open.isEmpty, open.allSatisfy({ isUpcomingAlone($0) }) { continue }
+            if matches(t) {
                 if let date = board.agendaDate(t), let d = t.sortedDates.first(where: { $0.date == date }) {
-                    dated.append((PlanItem(task: t), date, "\(d.kind.title) \(d.label)"))
+                    dated.append((PlanItem(task: t), date, ["\(d.kind.title) \(d.label)", leftToPlan(t.planParts)].compactMap { $0 }.joined(separator: " · ")))
                 } else {
-                    undated.append((PlanItem(task: t), board.column(t.columnID)?.name ?? ""))
+                    undated.append((PlanItem(task: t), [board.column(t.columnID)?.name ?? "", leftToPlan(t.planParts)].compactMap { $0 }.joined(separator: " · ")))
                 }
             }
-            for sub in t.subtasks where !sub.isDone && !sub.isPlanned(on: today) && matches(t, sub) {
+            for sub in t.subtasks where !sub.isDone && sub.planParts.isEmpty && !isUpcomingAlone(sub) && matches(t, sub) {
                 guard let date = sub.date, sub.isOverdue || date >= today else { continue }
-                dated.append((PlanItem(task: t, subtask: sub), date, L("「\(t.title)」的子任务 · \(sub.dateLabel ?? "")")))
+                dated.append((PlanItem(task: t, subtask: sub), date, [L("「\(t.title)」的子任务 · \(sub.dateLabel ?? "")"), leftToPlan(sub.planParts)].compactMap { $0 }.joined(separator: " · ")))
             }
         }
         dated.sort { $0.date < $1.date }
@@ -361,7 +380,7 @@ struct TodayView: View {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     let groups = picks
                     if groups.isEmpty {
-                        Text(search.isEmpty ? L("没完成的任务都已经排进\(today.planDayName)的计划了。") : L("没有找到。"))
+                        Text(search.isEmpty ? L("没完成的任务都已经排进计划了。") : L("没有找到。"))
                             .scaledFont(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -410,7 +429,11 @@ struct TodayView: View {
             }
             .buttonStyle(.borderless)
             .help(L("加到\(today.planDayName)的计划（右键可选别的日子）"))
-            .contextMenu { addMenu([ref]) }
+            .contextMenu {
+                addMenu([ref])
+                Divider()
+                Button(L("分几天做…")) { splitting = SplitTarget(task: task, subtaskID: sub.id) }
+            }
             Image(systemName: "arrow.turn.down.right").scaledFont(.caption).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 1) {
                 Button(sub.title.isEmpty ? L("（无标题）") : sub.title) { onEdit(task) }
@@ -436,7 +459,28 @@ struct TodayView: View {
 
     /// Subtasks not done and not yet on the chosen day's plan.
     private func openSubtasks(_ task: PlannerTask) -> [Subtask] {
-        task.subtasks.filter { !$0.isDone && !$0.isPlanned(on: today) }
+        task.subtasks.filter { !$0.isDone && $0.planParts.isEmpty && !isUpcomingAlone($0) }
+    }
+
+    /// A subtask on a plan by itself (as a whole or in parts) today or later.
+    private func isUpcomingAlone(_ sub: Subtask) -> Bool { fullyPlanned(sub.planDay, sub.planParts) }
+
+    /// All of it is on a plan (today or later): as a whole, or in parts adding up to 100%.
+    /// Partly planned ones stay in the agenda until the rest is planned too.
+    private func fullyPlanned(_ planDay: Date?, _ parts: [PlanPart]) -> Bool {
+        if isUpcoming(planDay) { return true }
+        guard !parts.isEmpty, parts.total >= 100 else { return false }
+        return parts.allSatisfy(\.isDone) || parts.contains { !$0.isDone && isUpcoming($0.day) }
+    }
+
+    /// "还剩 40% 没排" for one that's partly planned.
+    private func leftToPlan(_ parts: [PlanPart]) -> String? {
+        parts.isEmpty || parts.total >= 100 ? nil : L("还剩 \(100 - parts.total)% 没排")
+    }
+
+    /// On the plan of today or a later day (an earlier day's leftovers can be picked again).
+    private func isUpcoming(_ planDay: Date?) -> Bool {
+        planDay.map { cal.startOfDay(for: $0) >= today } ?? false
     }
 
     @ViewBuilder
@@ -453,7 +497,11 @@ struct TodayView: View {
                 }
                 .buttonStyle(.borderless)
                 .help(L("加到\(today.planDayName)的计划（右键可选别的日子）"))
-                .contextMenu { addMenu([PlanItem.Ref(taskID: task.id)]) }
+                .contextMenu {
+                    addMenu([PlanItem.Ref(taskID: task.id)])
+                    Divider()
+                    Button(L("分几天做…")) { splitting = SplitTarget(task: task) }
+                }
             }
             Circle()
                 .fill(board.tags(for: task).first.map { Color(hex: $0.colorHex) } ?? Color.gray.opacity(0.4))
@@ -494,7 +542,11 @@ struct TodayView: View {
                     }
                     .buttonStyle(.borderless)
                     .help(L("加到\(today.planDayName)的计划（右键可选别的日子）"))
-                    .contextMenu { addMenu([ref]) }
+                    .contextMenu {
+                            addMenu([ref])
+                            Divider()
+                            Button(L("分几天做…")) { splitting = SplitTarget(task: task, subtaskID: sub.id) }
+                        }
                     Text(sub.title.isEmpty ? L("（无标题）") : sub.title).lineLimit(1)
                     Spacer(minLength: 0)
                     if let label = sub.dateLabel {
@@ -524,10 +576,16 @@ private struct PlanRow: View {
     let move: (Int) -> Void
     let moveTo: (Date) -> Void
     let onDragStart: () -> Void
+    let split: () -> Void
+    let splitSubtask: (String) -> Void
     @State private var hovering = false
     @State private var pickingDay = false
     /// Folded subtask list (shown by default so they're visible without opening the task).
     @State private var subtasksFolded = false
+    /// Finished subtasks are left out of the plan, unless asked for (or just ticked here,
+    /// so a tick doesn't make the line vanish under the mouse).
+    @State private var showDoneSubtasks = false
+    @State private var tickedHere: Set<String> = []
 
     private var board: Board { store.board }
 
@@ -543,17 +601,21 @@ private struct PlanRow: View {
                 .background(Circle().fill(done ? Color.primary.opacity(0.08) : Color(hex: "#2A78D6")))
             Button {
                 withAnimation(.snappy) {
-                    if let sub = item.subtask { store.toggleSubtask(task.id, sub.id) } else { store.toggleDone(task.id) }
+                    if let part = item.part { store.togglePlanPart(task.id, part.id) }
+                    else if let sub = item.subtask { store.toggleSubtask(task.id, sub.id) } else { store.toggleDone(task.id) }
                 }
             } label: {
                 // Subtasks tick in a square, tasks in a circle.
-                Image(systemName: item.subtask == nil ? (done ? "checkmark.circle.fill" : "circle")
-                                                      : (done ? "checkmark.square.fill" : "square"))
+                Image(systemName: item.part != nil
+                      ? (item.subtask == nil ? (done ? "checkmark.circle.fill" : "circle.lefthalf.filled")
+                                             : (done ? "checkmark.square.fill" : "square.lefthalf.filled"))
+                                  : item.subtask == nil ? (done ? "checkmark.circle.fill" : "circle")
+                                                        : (done ? "checkmark.square.fill" : "square"))
                     .font(.system(size: 18 * fontScale))
                     .foregroundStyle(done ? Color.green : Color.secondary)
             }
             .buttonStyle(.plain)
-            .help(done ? L("标为没完成") : L("完成"))
+            .help(item.part != nil ? (done ? L("这天的部分标为没完成") : L("这天的部分做完了")) : done ? L("标为没完成") : L("完成"))
             VStack(alignment: .leading, spacing: 3) {
                 Button { onEdit(task) } label: {
                     Text(item.title.isEmpty ? L("（无标题）") : item.title)
@@ -567,6 +629,7 @@ private struct PlanRow: View {
                 HStack(spacing: 8) {
                     if let tag { TagChip(tag: tag, small: true) }
                     if let sub = item.subtask {
+                        if let part = item.part { partChips(part, done: sub.planParts.done, days: sub.planParts.count) }
                         Label(L("「\(task.title)」的子任务"), systemImage: "arrow.turn.down.right")
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -574,6 +637,7 @@ private struct PlanRow: View {
                             Label(label, systemImage: "calendar").foregroundStyle(sub.isOverdue ? Color.red : Color.secondary)
                         }
                     } else {
+                    if let part = item.part { partChips(part, done: task.partsDone, days: task.planParts.count) }
                     if let column = board.column(task.columnID) {
                         Text(column.name).foregroundStyle(.secondary)
                     }
@@ -608,6 +672,17 @@ private struct PlanRow: View {
                 }
             }
             Spacer(minLength: 8)
+            // How much of it this day: click to change it (or spread it over several days).
+            Button(action: split) {
+                Text("\(item.part?.percent ?? 100)%")
+                    .font(.system(size: 12 * fontScale, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(item.part == nil ? Color.secondary : Color.orange)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background((item.part == nil ? Color.primary.opacity(0.06) : Color.orange.opacity(0.14)), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help(L("这天做多少：点一下改成 50% 之类，或分几天做；不到 100% 的部分会回到右边的日程"))
             if !done {
                 FocusMenu(task: task, compact: true)
                     .menuStyle(.borderlessButton)
@@ -628,6 +703,7 @@ private struct PlanRow: View {
                     }
                     Divider()
                     Button(L("选别的日期…")) { pickingDay = true }
+                    Button(item.part == nil ? L("分几天做…") : L("改每天做多少…"), action: split)
                 } label: {
                     Image(systemName: "calendar.badge.clock")
                 }
@@ -671,13 +747,34 @@ private struct PlanRow: View {
         }
     }
 
+    /// This day's share ("这天做 50%") and how far the whole has got ("已做 70%").
+    @ViewBuilder
+    private func partChips(_ part: PlanPart, done: Int, days: Int) -> some View {
+        Text(L("这天做 \(part.percent)%"))
+            .fontWeight(.semibold)
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 6).padding(.vertical, 1)
+            .background(Color.orange.opacity(0.12), in: Capsule())
+        Text(L("已做 \(done)%"))
+            .foregroundStyle(.secondary)
+            .help(L("分 \(days) 天做，已完成的部分加起来"))
+    }
+
     /// The task's subtasks, tickable right here, each with its own files and links.
     private func subtaskList(_ task: PlannerTask) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            ForEach(task.subtasks) { sub in
+        // Subtasks put on a plan by themselves belong to that day, not under the task.
+        let own = task.subtasks.filter { !$0.isPlannedAlone }
+        let elsewhere = task.subtasks.filter { $0.isPlannedAlone && !$0.isDone }
+        let shown = own.filter { !$0.isDone || showDoneSubtasks || tickedHere.contains($0.id) }
+        let hiddenDone = own.filter { $0.isDone }.count - shown.filter { $0.isDone }.count
+        return VStack(alignment: .leading, spacing: 3) {
+            ForEach(shown) { sub in
                 let ref = PlanItem.Ref(taskID: task.id, subtaskID: sub.id)
                 HStack(spacing: 6) {
-                    Button { withAnimation(.snappy) { store.toggleSubtask(task.id, sub.id) } } label: {
+                    Button {
+                        tickedHere.insert(sub.id)
+                        withAnimation(.snappy) { store.toggleSubtask(task.id, sub.id) }
+                    } label: {
                         HStack(spacing: 6) {
                             Image(systemName: sub.isDone ? "checkmark.square.fill" : "square")
                                 .foregroundStyle(sub.isDone ? Color.green : Color.secondary)
@@ -706,12 +803,52 @@ private struct PlanRow: View {
                     AddLinkButton { links in withAnimation(.snappy) { store.addLinks(links, to: ref) } }
                         .foregroundStyle(.secondary)
                         .opacity(hovering ? 1 : 0)
+                    Button { splitSubtask(sub.id) } label: {
+                        Text("%").font(.system(size: 11 * fontScale, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Color.primary.opacity(0.06), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(L("这个子任务这天做多少（可以只做一部分，或分几天做）"))
+                    // Put this subtask on a day by itself, or spread it over several days.
+                    Menu {
+                        ForEach(Date.weekChoices, id: \.self) { d in
+                            Button(L("单独排到\(d.planDayName)") + "  " + d.formatted(.dateTime.month().day())) {
+                                withAnimation(.snappy) { store.addToPlan([ref], day: d) }
+                            }
+                        }
+                        Divider()
+                        Button(L("分几天做…")) { splitSubtask(sub.id) }
+                    } label: {
+                        Image(systemName: "calendar.badge.clock")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .foregroundStyle(.secondary)
+                    .opacity(hovering ? 1 : 0)
+                    .help(L("把这个子任务单独排到某一天，或分几天做"))
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
                 // Dropped on this subtask's line: attached to the subtask, not the task.
                 .linkDrop(types: [.fileURL, .url]) { links in withAnimation(.snappy) { store.addLinks(links, to: ref) } }
                 .scaledFont(.callout)
+            }
+            if !elsewhere.isEmpty {
+                Text(L("另有 \(elsewhere.count) 个子任务单独排在：") + elsewhere.flatMap { s in ([s.planDay].compactMap { $0 } + s.planParts.map(\.day)).sorted().map(\.planDayName) }
+                    .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.joined(separator: "、"))
+                    .scaledFont(.caption)
+                    .foregroundStyle(.orange)
+            }
+            if hiddenDone > 0 || showDoneSubtasks {
+                Button(showDoneSubtasks ? L("隐藏已完成的子任务") : L("还有 \(hiddenDone) 个已完成的子任务")) {
+                    withAnimation(.snappy) { showDoneSubtasks.toggle() }
+                }
+                .buttonStyle(.plain)
+                .scaledFont(.caption)
+                .foregroundStyle(.tertiary)
             }
         }
         .padding(.top, 4)
@@ -722,14 +859,140 @@ private struct PlanRow: View {
 /// with "|p" at the end when it's a row of a plan (so dropping it on the right unplans it).
 enum PlanDrag {
     static func string(_ ref: PlanItem.Ref, fromPlan: Bool = false) -> String {
-        "plan|\(ref.taskID)|\(ref.subtaskID ?? "")" + (fromPlan ? "|p" : "")
+        // "plan|task|subtask|part|p" — the part (a day's share of a split task) and the
+        // plan-row flag are left off when empty, so older drags still read the same.
+        var s = "plan|\(ref.taskID)|\(ref.subtaskID ?? "")"
+        if let pid = ref.partID { s += "|\(pid)|" + (fromPlan ? "p" : "") } else if fromPlan { s += "|p" }
+        return s
     }
 
     static func isFromPlan(_ s: String) -> Bool { s.hasSuffix("|p") && ref(s) != nil }
 
     static func ref(_ s: String) -> PlanItem.Ref? {
-        let parts = s.split(separator: "|", omittingEmptySubsequences: false)
-        guard parts.count == 3 || (parts.count == 4 && parts[3] == "p"), parts[0] == "plan", !parts[1].isEmpty else { return nil }
-        return PlanItem.Ref(taskID: String(parts[1]), subtaskID: parts[2].isEmpty ? nil : String(parts[2]))
+        let parts = s.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard (3...5).contains(parts.count), parts[0] == "plan", !parts[1].isEmpty else { return nil }
+        if parts.count == 4, parts[3] != "p" { return nil }
+        let pid = parts.count == 5 && !parts[3].isEmpty ? parts[3] : nil
+        return PlanItem.Ref(taskID: parts[1], subtaskID: parts[2].isEmpty ? nil : parts[2], partID: pid)
+    }
+}
+
+
+/// 分几天做: spread a task over several days, with how much of it to do on each
+/// ("周三 50%, 周四 20%, 周五 10%"). Each day gets its own line on that day's plan.
+/// What 分几天做 is for: a task, or one of its subtasks.
+struct SplitTarget: Identifiable {
+    var task: PlannerTask
+    var subtaskID: String? = nil
+    /// The day it was opened from (a new split starts there at 100%).
+    var day: Date? = nil
+    var id: String { task.id + "/" + (subtaskID ?? "") }
+}
+
+struct SplitPlanView: View {
+    @EnvironmentObject private var store: BoardStore
+    @Environment(\.dismiss) private var dismiss
+    let task: PlannerTask
+    let subtaskID: String?
+    let saved: (Date) -> Void
+
+    private var subtask: Subtask? { subtaskID.flatMap { id in task.subtasks.first { $0.id == id } } }
+    private var title: String { subtask?.title ?? task.title }
+    private var currentParts: [PlanPart] { subtask?.planParts ?? task.planParts }
+
+    private struct Row: Identifiable {
+        let id = UUID()
+        var day: Date
+        var percent: Int
+    }
+    @State private var rows: [Row]
+
+    init(task: PlannerTask, subtaskID: String? = nil, startDay: Date, saved: @escaping (Date) -> Void) {
+        self.task = task
+        self.subtaskID = subtaskID
+        self.saved = saved
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: startDay)
+        let sub = subtaskID.flatMap { id in task.subtasks.first { $0.id == id } }
+        let parts = sub?.planParts ?? task.planParts
+        let existing = parts.sorted { $0.day < $1.day }.map { Row(day: $0.day, percent: $0.percent) }
+        // Not split yet: the day it's on (or was opened from), all of it — lower it, or add days.
+        let whole = sub.map { $0.planDay } ?? task.planDay
+        _rows = State(initialValue: existing.isEmpty ? [Row(day: cal.startOfDay(for: whole ?? start), percent: 100)] : existing)
+    }
+
+    private var total: Int { rows.map(\.percent).reduce(0, +) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L("分几天做「\(title)」")).font(.headline).lineLimit(2)
+            Text((subtask == nil ? L("每天做这个任务的多少。每一天都会单独出现在那天的计划里，可以单独打勾；全部打勾、加起来到 100% 时，任务就完成了。")
+                                 : L("每天做这个子任务的多少。每一天都会单独出现在那天的计划里，可以单独打勾；全部打勾、加起来到 100% 时，子任务就打勾完成了。"))
+                 + " " + L("不到 100% 时，剩下的会留在右边的日程里，再拖到别的日子就行。"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach($rows) { $row in
+                HStack(spacing: 8) {
+                    DatePicker("", selection: $row.day, displayedComponents: .date)
+                        .labelsHidden()
+                        .fixedSize()
+                    Text(row.day.planDayName).foregroundStyle(.secondary).frame(width: 90, alignment: .leading)
+                    Spacer()
+                    TextField("", value: $row.percent, format: .number)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 44)
+                    Text("%")
+                    Stepper("", value: $row.percent, in: 5...100, step: 5).labelsHidden()
+                    Button { rows.removeAll { $0.id == row.id } } label: { Image(systemName: "minus.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help(L("去掉这一天"))
+                }
+            }
+            HStack {
+                Button(L("＋ 再加一天"), action: addDay)
+                Spacer()
+                Text(L("合计 \(total)%"))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(total == 100 ? Color.green : total > 100 ? Color.red : Color.secondary)
+            }
+            if total != 100 {
+                Text(total > 100 ? L("加起来超过 100% 了。") : L("还剩 \(100 - total)% 没排：会留在右边的日程里。"))
+                    .font(.caption)
+                    .foregroundStyle(total > 100 ? .red : .secondary)
+            }
+            Divider()
+            HStack {
+                if !currentParts.isEmpty {
+                    Button(L("不分了")) {
+                        store.setPlanParts(task.id, subtask: subtaskID, [])
+                        dismiss()
+                    }
+                    .help(L("去掉所有天的安排（任务本身不会删除）"))
+                }
+                Spacer()
+                Button(L("取消")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(L("保存")) {
+                    let cal = Calendar.current
+                    let parts = rows.map { (day: cal.startOfDay(for: $0.day), percent: min(100, max(1, $0.percent))) }
+                    withAnimation(.snappy) { store.setPlanParts(task.id, subtask: subtaskID, parts) }
+                    parts.forEach { saved($0.day) }
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(rows.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
+    }
+
+    /// The day after the last one, with what's left (at least 10%).
+    private func addDay() {
+        let cal = Calendar.current
+        let last = rows.map(\.day).max() ?? cal.startOfDay(for: Date())
+        rows.append(Row(day: cal.date(byAdding: .day, value: rows.isEmpty ? 0 : 1, to: last)!, percent: max(10, 100 - total)))
     }
 }
