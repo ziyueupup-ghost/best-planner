@@ -33,7 +33,34 @@ extension [PlanPart] {
     var finished: Bool { !isEmpty && allSatisfy(\.isDone) && total >= 100 }
 }
 
+extension [PlanPart] {
+    /// Two parts on the same day become one (30% + 30% → 60%, at most 100%), ticked only
+    /// if both were. The one that was there already stays; ones in `moved` merge into it.
+    mutating func mergeSameDays(moved: Set<String> = []) {
+        let cal = Calendar.current
+        var out: [PlanPart] = []
+        for p in self {
+            if let k = out.firstIndex(where: { cal.isDate($0.day, inSameDayAs: p.day) }) {
+                var keep = moved.contains(out[k].id) && !moved.contains(p.id) ? p : out[k]
+                let other = keep.id == p.id ? out[k] : p
+                keep.percent = Swift.min(100, keep.percent + other.percent)
+                keep.isDone = keep.isDone && other.isDone
+                out[k] = keep
+            } else {
+                out.append(p)
+            }
+        }
+        self = out
+    }
+}
+
 extension PlannerTask {
+    /// Same-day parts of it (or of one of its subtasks) merged into one.
+    mutating func mergeSameDayParts(moved: Set<String> = []) {
+        planParts.mergeSameDays(moved: moved)
+        for j in subtasks.indices { subtasks[j].planParts.mergeSameDays(moved: moved) }
+    }
+
     var partsDone: Int { planParts.done }
     var partsTotal: Int { planParts.total }
 }

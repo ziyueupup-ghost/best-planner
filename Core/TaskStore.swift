@@ -336,6 +336,9 @@ final class BoardStore: ObservableObject {
         }) {
             b.applyDueMoves()
         }
+        // Two parts of the same thing on one day (moved there by an older version, or on
+        // another device at the same time): one part.
+        for i in b.tasks.indices { b.tasks[i].mergeSameDayParts() }
         // Once a day (and at the first check of the day): what's planned for today starts.
         // Only once, so a task moved back to 待办 by hand stays there.
         let day = Calendar.current.startOfDay(for: now).timeIntervalSince1970
@@ -774,6 +777,11 @@ final class BoardStore: ObservableObject {
             }
             next += 1
         }
+        // A part moved onto a day that already has a part of the same thing: one part.
+        let movedParts = Set(refs.compactMap(\.partID))
+        for i in b.tasks.indices where refs.contains(where: { $0.taskID == b.tasks[i].id }) {
+            b.tasks[i].mergeSameDayParts(moved: movedParts)
+        }
         b.startTodaysPlan(only: Set(refs.map(\.taskID)))
         guard b != board else { return }
         board = b
@@ -835,6 +843,10 @@ final class BoardStore: ObservableObject {
                 b.tasks[i].planOrder = Double(n)
             }
         }
+        let movedParts = Set(refs.compactMap(\.partID))
+        for i in b.tasks.indices where refs.contains(where: { $0.taskID == b.tasks[i].id }) {
+            b.tasks[i].mergeSameDayParts(moved: movedParts)
+        }
         b.startTodaysPlan(only: newcomers)
         guard b != board else { return }
         board = b
@@ -863,6 +875,7 @@ final class BoardStore: ObservableObject {
                 new.append(PlanPart(day: day, percent: p.percent, order: order))
             }
         }
+        new.mergeSameDays()   // two rows for the same day: one part
         if let j {
             b.tasks[i].subtasks[j].planParts = new
             if !new.isEmpty { b.tasks[i].subtasks[j].planDay = nil }

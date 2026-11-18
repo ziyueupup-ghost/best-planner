@@ -135,7 +135,19 @@ function setOnline(on) {
 
 setInterval(() => { if (document.visibilityState === "visible") sync(); }, 10_000);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") sync(); else if (store.dirty) sync(); });
-setInterval(() => { if (store.board && (applyDueMoves() | startPlanOncePerDay())) changed(); }, 30_000);
+setInterval(() => { if (store.board && (applyDueMoves() | startPlanOncePerDay() | mergeAllSameDays())) changed(); }, 30_000);
+/** Two parts of the same thing on one day (from an older version, or two devices): one part. */
+function mergeAllSameDays() {
+  let changedAny = false;
+  for (const task of B().tasks) {
+    for (const owner of [task, ...task.subtasks]) {
+      const n = (owner.planParts || []).length;
+      mergeSameDays(owner);
+      if ((owner.planParts || []).length !== n) { changedAny = true; task.updatedAt = nowISO(); }
+    }
+  }
+  return changedAny;
+}
 /** Once a day: what's planned for today starts (only once, so a task moved back by hand stays). */
 function startPlanOncePerDay() {
   const key = dayKey(new Date());
@@ -1589,6 +1601,7 @@ function addToPlan(refs, d) {
     it.task.updatedAt = nowISO();
     added.add(it.task.id);
   }
+  mergeMovedParts(refs.map(itemOf).filter(Boolean));
   startTodaysPlan(added);
   changed();
 }
@@ -1596,6 +1609,30 @@ function addToPlan(refs, d) {
 /** A task still in the first status (待办) that is — itself or a subtask — on today's plan
  *  moves to the next status (进行中), as on the Mac. Tasks still waiting for another stay.
  *  `ids` limits it to these tasks (the ones just put on the plan). */
+/** Two parts on the same day become one (30% + 30% → 60%, at most 100%), ticked only if
+ *  both were. The one already there stays; parts in `moved` merge into it. */
+function mergeSameDays(owner, moved = new Set()) {
+  const out = [];
+  for (const p of owner.planParts || []) {
+    const k = out.findIndex((x) => sameDay(x.day, p.day));
+    if (k < 0) { out.push(p); continue; }
+    const keep = moved.has(out[k].id) && !moved.has(p.id) ? p : out[k];
+    const other = keep === p ? out[k] : p;
+    keep.percent = Math.min(100, keep.percent + other.percent);
+    keep.isDone = !!(keep.isDone && other.isDone);
+    out[k] = keep;
+  }
+  if (owner.planParts) owner.planParts = out;
+}
+/** After moving parts: merge same-day parts of these tasks and their subtasks. */
+function mergeMovedParts(items) {
+  const moved = new Set(items.filter((it) => it.part).map((it) => it.part.id));
+  for (const task of new Set(items.map((it) => it.task))) {
+    mergeSameDays(task, moved);
+    task.subtasks.forEach((sub) => mergeSameDays(sub, moved));
+  }
+}
+
 /** The rest of a split task or subtask (100% minus what's planned) as a part on `day`,
  *  or added to that day's part. Returns the part, or null when nothing is left. */
 function addRemainingPart(owner, day, order) {
@@ -1863,6 +1900,7 @@ function splitPopover(anchor, task, sub = null, startDay = null) {
         return { id: keep?.id || uuid(), day, percent: Math.min(100, Math.max(1, Math.round(r.percent))), isDone: keep?.isDone || false,
           order: keep ? keep.order : Math.max(0, ...planFor(day).map(itemOrder)) + 1 };
       });
+      mergeSameDays(owner);   // two rows for the same day: one part
       if (owner.planParts.length) delete owner.planDay;
       task.updatedAt = nowISO();
       startTodaysPlan(new Set([task.id]));
@@ -1910,6 +1948,7 @@ function placeInPlan(refs, d, index = Infinity) {
   });
   const newcomers = new Set(moved.filter((it) => !before.some((x) => x.ref === it.ref)).map((it) => it.task.id));
   for (const it of moved) { setItemDay(it, day); it.task.updatedAt = nowISO(); }
+  mergeMovedParts(moved);
   if (sameDay(d, new Date())) startTodaysPlan(newcomers);
   order.splice(Math.max(0, Math.min(index - shift, order.length)), 0, ...moved);
   setPlanOrder(order);
